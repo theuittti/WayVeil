@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- Module path: `github.com/wayveil/wayveil` (rename later with one `go mod edit` if the GitHub owner differs).
+- Module path: `github.com/theuittti/WayVeil` (rename later with one `go mod edit` if the GitHub owner differs).
 - Supported server OS: Ubuntu 22.04 / 24.04, Debian 11 / 12. Anything else → error code `unsupported_os`.
 - Inbound: VLESS, port 443, TCP only, `flow: "xtls-rprx-vision"`, `security: reality`. No XHTTP.
 - Client link: `vless://UUID@host:443?security=reality&sni=…&fp=chrome&pbk=…&sid=…&flow=xtls-rprx-vision&type=tcp#Name`.
@@ -84,7 +84,7 @@ internal/testenv/testenv.go           Start(t) → running container, integratio
   func Parse(s string) (Params, error)   // errors: ErrNotVless, ErrMissingField{Field string}
   ```
 
-- [ ] **Step 1: Prerequisites.** Install Go (latest stable from go.dev, ≥1.24) and confirm `go version`. Run `git init`, `go mod init github.com/wayveil/wayveil`. `.gitignore`: `.superpowers/`, `build/`, `internal/server/assets/wv-scan-*`. Copy reference `LICENSE` text into `THIRD_PARTY_LICENSES` under a heading naming the repo URL. Makefile targets: `test` (`go test ./...`), `scanner` (Task 3), `it` (`WAYVEIL_IT=1 go test -tags integration -count=1 -timeout 20m ./...`).
+- [ ] **Step 1: Prerequisites.** Install Go (latest stable from go.dev, ≥1.24) and confirm `go version`. Run `git init`, `go mod init github.com/theuittti/WayVeil`. `.gitignore`: `.superpowers/`, `build/`, `internal/server/assets/wv-scan-*`. Copy reference `LICENSE` text into `THIRD_PARTY_LICENSES` under a heading naming the repo URL. Makefile targets: `test` (`go test ./...`), `scanner` (Task 3), `it` (`WAYVEIL_IT=1 go test -tags integration -count=1 -timeout 20m ./...`).
 
 - [ ] **Step 2: Write failing tests** in `vless_test.go`:
   - `TestBuildExact`: `Build(Params{UUID:"11111111-2222-3333-4444-555555555555",Host:"203.0.113.10",SNI:"www.example.nl",PublicKey:"PBK",ShortID:"ab12",Name:"Вася ноутбук"})` == `vless://11111111-2222-3333-4444-555555555555@203.0.113.10:443?flow=xtls-rprx-vision&fp=chrome&pbk=PBK&security=reality&sid=ab12&sni=www.example.nl&type=tcp#%D0%92%D0%B0%D1%81%D1%8F%20%D0%BD%D0%BE%D1%83%D1%82%D0%B1%D1%83%D0%BA` (query keys sorted — `url.Values.Encode`; fragment via `url.PathEscape`).
