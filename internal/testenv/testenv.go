@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wayveil/wayveil/internal/sshx"
+	"github.com/theuittti/WayVeil/internal/sshx"
 )
 
 const image = "wayveil-it"

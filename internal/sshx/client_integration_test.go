@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wayveil/wayveil/internal/remote"
-	"github.com/wayveil/wayveil/internal/sshx"
-	"github.com/wayveil/wayveil/internal/testenv"
+	"github.com/theuittti/WayVeil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/sshx"
+	"github.com/theuittti/WayVeil/internal/testenv"
 )
 
 func TestRootPasswordRun(t *testing.T) {

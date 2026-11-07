@@ -22,11 +22,11 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/wayveil/wayveil/internal/ownerstore"
-	"github.com/wayveil/wayveil/internal/remote"
-	"github.com/wayveil/wayveil/internal/server"
-	"github.com/wayveil/wayveil/internal/sshx"
-	"github.com/wayveil/wayveil/rules"
+	"github.com/theuittti/WayVeil/internal/ownerstore"
+	"github.com/theuittti/WayVeil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/server"
+	"github.com/theuittti/WayVeil/internal/sshx"
+	"github.com/theuittti/WayVeil/rules"
 )
 
 type conn interface {

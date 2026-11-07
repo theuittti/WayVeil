@@ -6,9 +6,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/wayveil/wayveil/internal/targetcheck"
-	"github.com/wayveil/wayveil/internal/testenv"
-	"github.com/wayveil/wayveil/rules"
+	"github.com/theuittti/WayVeil/internal/targetcheck"
+	"github.com/theuittti/WayVeil/internal/testenv"
+	"github.com/theuittti/WayVeil/rules"
 )
 
 func TestCheckTargetReal(t *testing.T) {

@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	"github.com/wayveil/wayveil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/remote"
 )
 
 // Uninstall removes everything recorded in the server manifest and, last,

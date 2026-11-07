@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wayveil/wayveil/internal/sshx"
-	"github.com/wayveil/wayveil/internal/testenv"
+	"github.com/theuittti/WayVeil/internal/sshx"
+	"github.com/theuittti/WayVeil/internal/testenv"
 )
 
 func has(t *testing.T, c *sshx.Client, path string) bool {

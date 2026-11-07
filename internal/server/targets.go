@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wayveil/wayveil/internal/remote"
-	"github.com/wayveil/wayveil/internal/targetcheck"
-	"github.com/wayveil/wayveil/rules"
+	"github.com/theuittti/WayVeil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/targetcheck"
+	"github.com/theuittti/WayVeil/rules"
 )
 
 // scannerDir is root-only: root must never run a binary another user could replace.

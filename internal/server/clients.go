@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wayveil/wayveil/internal/link"
-	"github.com/wayveil/wayveil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/link"
+	"github.com/theuittti/WayVeil/internal/remote"
 )
 
 type Client struct {

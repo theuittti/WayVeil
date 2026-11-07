@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wayveil/wayveil/internal/link"
+	"github.com/theuittti/WayVeil/internal/link"
 )
 
 func ctlRunner(t *testing.T, reply string, seen *call) *fakeRunner {

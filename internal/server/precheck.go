@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/wayveil/wayveil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/remote"
 )
 
 type HostInfo struct {

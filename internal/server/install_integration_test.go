@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wayveil/wayveil/internal/sshx"
-	"github.com/wayveil/wayveil/internal/testenv"
+	"github.com/theuittti/WayVeil/internal/sshx"
+	"github.com/theuittti/WayVeil/internal/testenv"
 )
 
 // installed installs on a fresh container as user and returns the root

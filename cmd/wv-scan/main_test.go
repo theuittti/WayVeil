@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/wayveil/wayveil/internal/targetcheck"
-	"github.com/wayveil/wayveil/internal/targetscan"
+	"github.com/theuittti/WayVeil/internal/targetcheck"
+	"github.com/theuittti/WayVeil/internal/targetscan"
 )
 
 func TestCheckJSON(t *testing.T) {

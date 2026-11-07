@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wayveil/wayveil/internal/remote"
-	"github.com/wayveil/wayveil/internal/testenv"
+	"github.com/theuittti/WayVeil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/testenv"
 )
 
 var bg = context.Background()

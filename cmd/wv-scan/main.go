@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wayveil/wayveil/internal/targetcheck"
-	"github.com/wayveil/wayveil/internal/targetscan"
+	"github.com/theuittti/WayVeil/internal/targetcheck"
+	"github.com/theuittti/WayVeil/internal/targetscan"
 )
 
 type deps struct {

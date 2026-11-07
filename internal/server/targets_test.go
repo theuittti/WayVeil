@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wayveil/wayveil/rules"
+	"github.com/theuittti/WayVeil/rules"
 )
 
 var testTargets = rules.Targets{Version: 1,

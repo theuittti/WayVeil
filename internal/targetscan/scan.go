@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wayveil/wayveil/internal/targetcheck"
+	"github.com/theuittti/WayVeil/internal/targetcheck"
 )
 
 type Candidate struct {

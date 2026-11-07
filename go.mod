@@ -1,4 +1,4 @@
-module github.com/wayveil/wayveil
+module github.com/theuittti/WayVeil
 
 go 1.27.3
 

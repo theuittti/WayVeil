@@ -5,7 +5,7 @@ package server
 import (
 	"testing"
 
-	"github.com/wayveil/wayveil/internal/testenv"
+	"github.com/theuittti/WayVeil/internal/testenv"
 )
 
 const pkgList = `dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1=="ii"{print $2}' | sort`

@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/wayveil/wayveil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/remote"
 )
 
 type Target struct {

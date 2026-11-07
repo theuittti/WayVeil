@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/wayveil/wayveil/internal/remote"
+	"github.com/theuittti/WayVeil/internal/remote"
 )
 
 //go:embed scripts/*.sh assets/*

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wayveil/wayveil/internal/testenv"
+	"github.com/theuittti/WayVeil/internal/testenv"
 )
 
 func TestPrecheckFresh(t *testing.T) {
