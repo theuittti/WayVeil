@@ -10,6 +10,18 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-07-wayveil-design.md` — sections 4.5, 4.6 (rules, mode, lists), 4.8, acceptance 5–8. Windows parts of 4.5 (service helper, wintun) move to Plan 3 (user decision 2026-11-07).
 
+## ⚠ Amendment 2026-11-07: client core is mihomo, not sing-box (user decision)
+
+Found during Task 8: xray-core ≥ v26.9.8 rejects sing-box's REALITY ClientHello (no X25519MLKEM768 key share; sing-box#4520, unfixed). Verified on the test server: sing-box 1.14.4 → no connection with any fingerprint; mihomo v1.19.33 → HTTP 200. Tasks 1–3 and 5–7 were done against sing-box; this amendment overrides the sing-box specifics everywhere below.
+
+- **Binary:** mihomo **v1.19.33** (`MihomoVersion`), `build/mihomo` via `make mihomo` (gz from MetaCubeX/mihomo releases, `mihomo-linux-amd64-v1.19.33.gz`). Validate with `mihomo -t -d <home> -f <config>`; run with `mihomo -d <home> -f <config>`. `<home>` = `CacheDir()` (mihomo only accepts rule files under its home), config at `run/config.yaml`, lists under `lists/`.
+- **Config:** JSON (valid YAML) generated from Go maps by `internal/mihomo` (replaces `internal/singbox`, which is deleted). Keys: `mode: rule`, `ipv6: false`, `geo-auto-update: false`, `external-controller` 127.0.0.1:port + `secret`; `tun{enable, device: wayveil0, stack: mixed, auto-route, auto-detect-interface, strict-route, dns-hijack: [any:53], inet4-address: [172.19.0.1/30], mtu: 1500}` or `mixed-port` (tests); `dns{enable, ipv6: false, enhanced-mode: redir-host, default-nameserver: [77.88.8.8], nameserver: [https://77.88.8.8/dns-query], proxy-server-nameserver: same, nameserver-policy: {"rule-set:<domain sets>": [https://1.1.1.1/dns-query#proxy], "+.<always-proxy>": same, "+.<always-direct>": local}}` (smart) — all-mode: `nameserver: [https://1.1.1.1/dns-query#proxy]`; one VLESS proxy named `proxy` (`flow`, `servername`, `client-fingerprint: chrome`, `reality-opts`), dialled by IP.
+- **Rules (smart, exact order):** private CIDRs `DIRECT,no-resolve` → server IPs `IP-CIDR(6),…,DIRECT,no-resolve` (+ `DOMAIN,<host>,DIRECT` when the host is a name) → `DOMAIN-SUFFIX,<d>,DIRECT` → `DOMAIN-SUFFIX,<d>,proxy` → `RULE-SET,<domain set>,proxy` → `RULE-SET,<ip set>,proxy,no-resolve` → `MATCH,DIRECT`. All-mode: same up to always-direct, then `MATCH,proxy`.
+- **Lists (Task 3 rework):** `.mrs` (zstd, magic `28 b5 2f fd`). Tags/behaviors: `ru-blocked` domain (`russia_inside_domain.mrs`), `telegram-domain`/`telegram-ip`, `meta-domain`/`meta-ip`, `twitter-domain`/`twitter-ip`, `discord-domain`/`discord-ip` (`*_domain.mrs` / `*_ipcidr.mrs`). `rules.Source` gains `Behavior` ("domain"|"ipcidr"). Files `lists/<tag>.mrs`. `ru-blocked` required in smart mode.
+- **Engine/caps/CLI (Tasks 5–7 rework):** `mihomo.Find()` ($WAYVEIL_MIHOMO, next to exe, `build/mihomo`); Clash API unchanged except chains are `DIRECT`/`proxy` (compare case-insensitively); capability grant targets the mihomo binary.
+- **Task 8:** client container mounts `build/mihomo`; everything else as written.
+- **Dropped:** sing-box's DNS "legacy address filter" warning no longer applies.
+
 ## Global Constraints
 
 - sing-box version pinned: `SingBoxVersion = "1.14.4"`; config format = sing-box 1.14 (typed DNS servers, rule actions `sniff` / `hijack-dns`, `route.default_domain_resolver`). Every generated config must pass `sing-box check`.
