@@ -86,7 +86,9 @@ func TestUpdateRejectsHTML(t *testing.T) {
 
 type downTransport struct{}
 
-func (downTransport) RoundTrip(*http.Request) (*http.Response, error) { return nil, fmt.Errorf("network down") }
+func (downTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("network down")
+}
 
 func TestUpdateServerDown(t *testing.T) {
 	_, o := server(t, nil)
