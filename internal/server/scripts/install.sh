@@ -2,7 +2,11 @@
 # Non-interactive VLESS + REALITY + Vision install. Derived from
 # ndatg/xray-vless-reality-installer (MIT), see THIRD_PARTY_LICENSES.
 # Inputs: WV_ADDRESS WV_SNI WV_DNS WV_AUTH_USER WV_AUTH_KEY WV_XRAY_VERSION
+#         WV_UNINSTALLER (base64 of uninstall.sh)
+# Test hooks: WV_FAIL_AT=<step>, WV_APT_LOCK_TIMEOUT=<seconds>
 # Every created item is recorded in the manifest *before* it is created.
+# The uninstaller and the app key go first, so a failed install can always
+# be cleaned up; /etc/xray/wayveil-installing marks an unfinished install.
 set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 umask 022
@@ -10,7 +14,13 @@ umask 022
 MF=/etc/xray/wayveil-manifest
 LOG=$(mktemp /tmp/wayveil-install.XXXXXX)
 CUR=init
-step() { CUR=$1; echo "##STEP $1 start"; }
+step() {
+  CUR=$1; echo "##STEP $1 start"
+  if [ "${WV_FAIL_AT:-}" = "$1" ]; then echo "test hook: failing at $1" >&2; false; fi
+}
+APT_OPTS=(-o "DPkg::Lock::Timeout=${WV_APT_LOCK_TIMEOUT:-300}")
+# apt-get update takes the lists lock, which DPkg::Lock::Timeout does not cover
+apt_update() { local i; for i in 1 2 3 4 5 6 7 8 9 10; do apt-get update -qq "${APT_OPTS[@]}" >/dev/null && return 0; sleep 15; done; return 1; }
 ok()   { echo "##STEP $CUR ok${1:+ $1}"; }
 warn() { echo "##STEP $CUR warn $1"; }
 mf()   { echo "$*" >> "$MF"; }
@@ -23,10 +33,38 @@ fail() {
 trap fail ERR
 exec 2>>"$LOG"
 
-if [ -f /etc/xray/wayveil.json ]; then echo "##ERROR already_installed"; exit 1; fi
+if [ -f "$MF" ] || [ -f /etc/xray/wayveil.json ]; then echo "##ERROR already_installed"; exit 1; fi
 
-install -d -m 0750 /etc/xray
-mf dir /etc/xray
+if [ ! -d /etc/xray ]; then
+  install -d -m 0750 /etc/xray
+  mf dir /etc/xray        # only directories we create are ours to delete
+fi
+mf file /etc/xray/wayveil-installing
+: > /etc/xray/wayveil-installing
+
+# ---- uninstaller ----
+step uninstaller
+mf file /etc/xray/wayveil-uninstall.sh
+printf '%s' "$WV_UNINSTALLER" | base64 -d > /etc/xray/wayveil-uninstall.sh
+chmod 0700 /etc/xray/wayveil-uninstall.sh
+ok
+
+# ---- authkey ----
+step authkey
+H=$(getent passwd "$WV_AUTH_USER" | cut -d: -f6)
+G=$(id -gn "$WV_AUTH_USER")
+[ -n "$H" ]
+install -d -m 0700 -o "$WV_AUTH_USER" -g "$G" "$H/.ssh"
+AK="$H/.ssh/authorized_keys"
+if ! grep -qxF "$WV_AUTH_KEY" "$AK" 2>/dev/null; then
+  mf line "$AK" "$(printf '%s' "$WV_AUTH_KEY" | base64 -w0)"
+  # never glue our key onto a last line that lacks a newline
+  if [ -s "$AK" ] && [ -n "$(tail -c 1 "$AK")" ]; then echo >> "$AK"; fi
+  printf '%s\n' "$WV_AUTH_KEY" >> "$AK"
+fi
+chown "$WV_AUTH_USER:$G" "$AK"
+chmod 0600 "$AK"
+ok
 
 # ---- deps ----
 step deps
@@ -36,8 +74,8 @@ for p in curl unzip jq logrotate; do dpkg -s "$p" >/dev/null 2>&1 || need+=("$p"
 if [ ${#need[@]} -gt 0 ]; then
   before=$(installed_pkgs)
   for p in "${need[@]}"; do mf pkg "$p"; done   # recorded first in case apt is interrupted
-  apt-get update -qq >/dev/null
-  apt-get install -y -qq --no-install-recommends "${need[@]}" >/dev/null
+  apt_update
+  apt-get install -y -qq --no-install-recommends "${APT_OPTS[@]}" "${need[@]}" >/dev/null
   # also record dependencies apt pulled in, so uninstall restores the exact package set
   comm -13 <(echo "$before") <(installed_pkgs) | while read -r p; do
     case " ${need[*]} " in *" $p "*) ;; *) mf pkg "$p" ;; esac
@@ -82,7 +120,7 @@ if ! getent passwd xray >/dev/null; then
   mf user xray
   useradd --system --no-create-home --shell /usr/sbin/nologin xray
 fi
-mf dir /var/log/xray
+[ -d /var/log/xray ] || mf dir /var/log/xray
 install -d -m 0750 -o xray -g xray /var/log/xray
 # create the log as xray: `xray run -test` below runs as root and would otherwise own it
 install -m 0640 -o xray -g xray /dev/null /var/log/xray/access.log
@@ -177,29 +215,10 @@ cat > /etc/logrotate.d/xray <<'ROT'
 ROT
 ok
 
-# ---- authkey ----
-step authkey
-H=$(getent passwd "$WV_AUTH_USER" | cut -d: -f6)
-G=$(id -gn "$WV_AUTH_USER")
-[ -n "$H" ]
-install -d -m 0700 -o "$WV_AUTH_USER" -g "$G" "$H/.ssh"
-AK="$H/.ssh/authorized_keys"
-if ! grep -qxF "$WV_AUTH_KEY" "$AK" 2>/dev/null; then
-  mf line "$AK" "$(printf '%s' "$WV_AUTH_KEY" | base64 -w0)"
-  printf '%s\n' "$WV_AUTH_KEY" >> "$AK"
-fi
-chown "$WV_AUTH_USER:$G" "$AK"
-chmod 0600 "$AK"
-ok
-
-# ---- uninstaller (uploaded by the app right after this script) ----
-step uninstaller
-ok
-
 # ---- verify ----
 step verify
 systemctl is-active --quiet xray
 [ -n "$(ss -ltnH 'sport = :443')" ]
 ok
-rm -f "$LOG"
+rm -f "$LOG" /etc/xray/wayveil-installing
 printf '##RESULT {"publicKey":"%s","shortId":"%s","xrayVersion":"%s"}\n' "$PUB" "$SID" "$WV_XRAY_VERSION"

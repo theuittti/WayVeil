@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 
@@ -31,11 +32,17 @@ var (
 	ErrUnsupportedOS    = &ScriptError{Code: "unsupported_os"}
 	ErrPortBusy         = &ScriptError{Code: "port_busy"}
 	ErrForeignXray      = &ScriptError{Code: "foreign_xray"}
+	ErrPartialInstall   = &ScriptError{Code: "partial_install"}
 )
 
 // Install prechecks the server, refuses before changing anything when it is
 // not suitable, then runs the install script.
 func Install(ctx context.Context, r remote.Runner, o InstallOptions, onStep func(StepEvent)) (InstallResult, error) {
+	return installWith(ctx, r, o, onStep, nil)
+}
+
+// installWith is Install with extra script env (test hooks such as WV_FAIL_AT).
+func installWith(ctx context.Context, r remote.Runner, o InstallOptions, onStep func(StepEvent), extra map[string]string) (InstallResult, error) {
 	var res InstallResult
 	h, err := Precheck(ctx, r)
 	if err != nil {
@@ -44,6 +51,8 @@ func Install(ctx context.Context, r remote.Runner, o InstallOptions, onStep func
 	switch {
 	case !h.Supported:
 		return res, &ScriptError{Code: ErrUnsupportedOS.Code, Message: h.OSID + " " + h.OSVersion}
+	case h.PartialInstall:
+		return res, ErrPartialInstall
 	case h.HasWayveil:
 		return res, ErrAlreadyInstalled
 	case h.HasForeignXray:
@@ -60,6 +69,10 @@ func Install(ctx context.Context, r remote.Runner, o InstallOptions, onStep func
 	env := map[string]string{
 		"WV_ADDRESS": o.Address, "WV_SNI": o.SNI, "WV_DNS": o.DNS, "WV_AUTH_USER": o.AuthUser,
 		"WV_AUTH_KEY": o.AuthKeyLine, "WV_XRAY_VERSION": XrayVersion,
+		"WV_UNINSTALLER": base64.StdEncoding.EncodeToString(script("uninstall")),
+	}
+	for k, v := range extra {
+		env[k] = v
 	}
 	out, err := runScript(ctx, r, "install", env, func(e StepEvent) {
 		if e.Status == StepWarn {
@@ -78,5 +91,5 @@ func Install(ctx context.Context, r remote.Runner, o InstallOptions, onStep func
 	if err := json.Unmarshal(out, &res); err != nil {
 		return res, err
 	}
-	return res, uploadUninstaller(ctx, r)
+	return res, nil
 }

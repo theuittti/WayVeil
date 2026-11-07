@@ -14,9 +14,9 @@ func precheckJSON(busy, hasWV bool) string {
 }
 
 var installOut = strings.Join([]string{
-	"##STEP deps start", "##STEP deps ok", "##STEP xray ok", "##STEP keys ok", "##STEP config ok",
-	"##STEP service ok", "##STEP bbr warn sysctl not permitted", "##STEP logrotate ok", "##STEP authkey ok",
-	"##STEP uninstaller ok", "##STEP verify ok",
+	"##STEP uninstaller ok", "##STEP authkey ok", "##STEP deps start", "##STEP deps ok", "##STEP xray ok",
+	"##STEP keys ok", "##STEP config ok", "##STEP service ok", "##STEP bbr warn sysctl not permitted",
+	"##STEP logrotate ok", "##STEP verify ok",
 	`##RESULT {"publicKey":"PBK","shortId":"ab12cd34","xrayVersion":"v26.10.31"}`,
 }, "\n") + "\n"
 
@@ -69,7 +69,7 @@ func TestInstallHappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"deps", "xray", "keys", "config", "service", "bbr", "logrotate", "authkey", "uninstaller", "verify"}
+	want := []string{"uninstaller", "authkey", "deps", "xray", "keys", "config", "service", "bbr", "logrotate", "verify"}
 	if !slices.Equal(ids, want) {
 		t.Fatalf("steps %v", ids)
 	}

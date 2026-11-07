@@ -139,6 +139,12 @@ func cmdInstall(ctx context.Context, args []string, d deps) error {
 	if err != nil {
 		return err
 	}
+	// Save the profile first: the app key is authorized at the start of the
+	// install, so even a failed install can be cleaned up with `uninstall`.
+	if err := ownerstore.Save(ownerstore.ServerProfile{Host: *host, Port: *port, User: *user,
+		HostKey: c.HostKey(), PrivateKeyPEM: keyPEM, AuthorizedLine: line}); err != nil {
+		return err
+	}
 	start := time.Now()
 	_, err = d.install(ctx, c, server.InstallOptions{Address: *host, SNI: *sni, AuthUser: *user, AuthKeyLine: line},
 		func(s server.StepEvent) {
@@ -146,12 +152,11 @@ func cmdInstall(ctx context.Context, args []string, d deps) error {
 				fmt.Fprintf(d.out, "  %-12s %s %s\n", s.ID, s.Status, s.Message)
 			}
 		})
-	if err != nil {
-		return err
+	if errors.Is(err, server.ErrPartialInstall) {
+		return fmt.Errorf("a previous install did not finish; run: wayveil-dev uninstall -host %s -port %d, then install again", *host, *port)
 	}
-	if err := ownerstore.Save(ownerstore.ServerProfile{Host: *host, Port: *port, User: *user,
-		HostKey: c.HostKey(), PrivateKeyPEM: keyPEM, AuthorizedLine: line}); err != nil {
-		return err
+	if err != nil {
+		return fmt.Errorf("%s (clean up with: wayveil-dev uninstall -host %s -port %d)", describe(err), *host, *port)
 	}
 	cl, err := d.addClient(ctx, c, "Я")
 	if err != nil {

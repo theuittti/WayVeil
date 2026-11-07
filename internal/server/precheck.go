@@ -17,6 +17,7 @@ type HostInfo struct {
 	Port443Process string `json:"port443Process"`
 	HasWayveil     bool   `json:"hasWayveil"`
 	HasForeignXray bool   `json:"hasForeignXray"`
+	PartialInstall bool   `json:"partialInstall"` // an install failed midway; run Uninstall first
 	PublicIP       string `json:"publicIp"`
 }
 

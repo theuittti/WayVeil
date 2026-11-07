@@ -24,7 +24,7 @@ func TestCheckTargetReal(t *testing.T) {
 	if err := CleanupScanner(bg, root); err != nil {
 		t.Fatal(err)
 	}
-	if testenv.Sh(t, root, "test -e /tmp/wv-scan && echo left || echo gone") != "gone" {
+	if testenv.Sh(t, root, "test -e "+scannerPath+" && echo left || echo gone") != "gone" {
 		t.Fatal("scanner left on server")
 	}
 }
@@ -39,7 +39,7 @@ func TestSuggestTargetsReal(t *testing.T) {
 	if !slices.ContainsFunc(got, func(s Suggestion) bool { return s.Kind == KindRussian && s.Report.OK }) {
 		t.Fatalf("no verified russian preset: %+v", got)
 	}
-	if testenv.Sh(t, root, "test -e /tmp/wv-scan && echo left || echo gone") != "gone" {
+	if testenv.Sh(t, root, "test -e "+scannerPath+" && echo left || echo gone") != "gone" {
 		t.Fatal("scanner left on server")
 	}
 }

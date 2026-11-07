@@ -15,7 +15,11 @@ import (
 	"github.com/wayveil/wayveil/rules"
 )
 
-const scannerPath = "/tmp/wv-scan"
+// scannerDir is root-only: root must never run a binary another user could replace.
+const (
+	scannerDir  = "/root/.cache/wayveil"
+	scannerPath = scannerDir + "/wv-scan"
+)
 
 type SuggestionKind string
 
@@ -45,13 +49,13 @@ func ensureScanner(ctx context.Context, r remote.Runner, arch string) error {
 		strings.HasPrefix(string(out), hex.EncodeToString(sum[:])) {
 		return nil
 	}
-	_, err = r.Run(ctx, "install -m 0755 /dev/stdin "+scannerPath, bin)
+	_, err = r.Run(ctx, "install -d -m 0700 "+scannerDir+" && install -m 0700 /dev/stdin "+scannerPath, bin)
 	return err
 }
 
 // CleanupScanner removes the uploaded scanner from the server.
 func CleanupScanner(ctx context.Context, r remote.Runner) error {
-	_, err := r.Run(ctx, "rm -f "+scannerPath, nil)
+	_, err := r.Run(ctx, "rm -f "+scannerPath+"; rmdir "+scannerDir+" 2>/dev/null || true", nil)
 	return err
 }
 

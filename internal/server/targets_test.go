@@ -77,16 +77,30 @@ func TestSuggestFallbackRecommend(t *testing.T) {
 func TestCleanupCalled(t *testing.T) {
 	f := suggestRunner(true)
 	collectSuggestions(t, f)
-	if last := f.calls[len(f.calls)-1]; !strings.Contains(last.Cmd, "rm -f /tmp/wv-scan") {
+	if last := f.calls[len(f.calls)-1]; !strings.Contains(last.Cmd, "rm -f "+scannerPath) {
 		t.Fatalf("last call %q", last.Cmd)
 	}
 	uploads := 0
 	for _, c := range f.calls {
-		if strings.Contains(c.Cmd, "/dev/stdin /tmp/wv-scan") && len(c.Stdin) > 1000 {
+		if strings.Contains(c.Cmd, "/dev/stdin "+scannerPath) && len(c.Stdin) > 1000 {
 			uploads++
 		}
 	}
 	if uploads != 1 {
 		t.Fatalf("scanner uploads: %d", uploads)
+	}
+}
+
+// Final review I5: root must not execute a scanner from a world-writable dir.
+func TestScannerNotInWorldWritableDir(t *testing.T) {
+	if strings.HasPrefix(scannerPath, "/tmp/") || strings.HasPrefix(scannerPath, "/var/tmp/") {
+		t.Fatalf("scanner path %s is world-writable", scannerPath)
+	}
+	f := suggestRunner(true)
+	collectSuggestions(t, f)
+	for _, c := range f.calls {
+		if strings.Contains(c.Cmd, "/dev/stdin "+scannerPath) && !strings.Contains(c.Cmd, "install -d -m 0700") {
+			t.Fatalf("upload must create a root-only dir: %q", c.Cmd)
+		}
 	}
 }

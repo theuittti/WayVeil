@@ -18,12 +18,13 @@ if [ -n "$line" ]; then
   proc=$(printf '%s' "$line" | sed -n 's/.*users:(("\([^"]*\)".*/\1/p')
 fi
 
-has_wv=0; [ -f /etc/xray/wayveil.json ] && has_wv=1
+partial=0; [ -f /etc/xray/wayveil-manifest ] && [ -f /etc/xray/wayveil-installing ] && partial=1
+has_wv=0; [ $partial = 0 ] && [ -f /etc/xray/wayveil.json ] && has_wv=1
 foreign=0
-if [ $has_wv = 0 ] && { [ -e /usr/local/bin/xray ] || [ -e /etc/systemd/system/xray.service ] || systemctl cat xray >/dev/null 2>&1; }; then foreign=1; fi
+if [ ! -f /etc/xray/wayveil-manifest ] && { [ -e /usr/local/bin/xray ] || [ -e /etc/systemd/system/xray.service ] || systemctl cat xray >/dev/null 2>&1; }; then foreign=1; fi
 
 ip=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
 
-printf '##RESULT {"osId":%s,"osVersion":%s,"arch":%s,"supported":%s,"port443Busy":%s,"port443Process":%s,"hasWayveil":%s,"hasForeignXray":%s,"publicIp":%s}\n' \
+printf '##RESULT {"osId":%s,"osVersion":%s,"arch":%s,"supported":%s,"port443Busy":%s,"port443Process":%s,"hasWayveil":%s,"hasForeignXray":%s,"partialInstall":%s,"publicIp":%s}\n' \
   "$(jstr "$os_id")" "$(jstr "$os_ver")" "$(jstr "$arch")" "$(jbool $supported)" "$(jbool $busy)" \
-  "$(jstr "$proc")" "$(jbool $has_wv)" "$(jbool $foreign)" "$(jstr "$ip")"
+  "$(jstr "$proc")" "$(jbool $has_wv)" "$(jbool $foreign)" "$(jbool $partial)" "$(jstr "$ip")"
