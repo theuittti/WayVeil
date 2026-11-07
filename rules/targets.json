@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "byCountry": {
+    "NL": ["www.nu.nl", "www.bol.com", "tweakers.net", "www.marktplaats.nl", "www.ah.nl"],
+    "DE": ["www.spiegel.de", "www.otto.de", "www.heise.de", "www.zalando.de"],
+    "FI": ["yle.fi", "www.verkkokauppa.com", "www.is.fi"],
+    "FR": ["www.leboncoin.fr", "www.fnac.com"],
+    "GB": ["www.bbc.co.uk", "www.theguardian.com", "www.argos.co.uk"],
+    "US": ["www.nytimes.com", "www.walmart.com", "www.reddit.com"],
+    "SE": ["www.blocket.se", "www.svt.se", "www.aftonbladet.se"],
+    "PL": ["allegro.pl", "www.onet.pl", "www.wp.pl"]
+  },
+  "russian": ["ozon.ru", "vk.com", "ya.ru"]
+}
