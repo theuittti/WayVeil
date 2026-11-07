@@ -108,3 +108,14 @@ func TestInstallPortBusy(t *testing.T) {
 		t.Fatal("xray was installed")
 	}
 }
+
+// Container has no IPv6: xray must not pick AAAA records at random.
+func TestInstallIPv4OnlyStrategy(t *testing.T) {
+	root, _, _ := installed(t, testenv.Start(t), "root", "wayveil")
+	if s := testenv.Sh(t, root, `jq -r '.outbounds[]|select(.tag=="direct").streamSettings.sockopt.domainStrategy' /etc/xray/config.json`); s != "ForceIPv4" {
+		t.Fatalf("domainStrategy %q", s)
+	}
+	if s := testenv.Sh(t, root, "jq -r .dns.queryStrategy /etc/xray/config.json"); s != "UseIPv4" {
+		t.Fatalf("queryStrategy %q", s)
+	}
+}

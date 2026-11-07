@@ -80,10 +80,17 @@ mf dir /var/log/xray
 install -d -m 0750 -o xray -g xray /var/log/xray
 # create the log as xray: `xray run -test` below runs as root and would otherwise own it
 install -m 0640 -o xray -g xray /dev/null /var/log/xray/access.log
+# IPv6 only when the server really has it; otherwise xray would pick AAAA
+# records at random and some connections would fail ("works every other time").
+if curl -6 -fsS --max-time 5 -o /dev/null https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null; then
+  STRAT=ForceIP; QSTRAT=UseIP
+else
+  STRAT=ForceIPv4; QSTRAT=UseIPv4
+fi
 mf file /etc/xray/config.json
-jq -n --arg sni "$WV_SNI" --arg priv "$PRIV" --arg sid "$SID" --arg dns "$WV_DNS" '{
+jq -n --arg strat "$STRAT" --arg qstrat "$QSTRAT" --arg sni "$WV_SNI" --arg priv "$PRIV" --arg sid "$SID" --arg dns "$WV_DNS" '{
   log: {loglevel: "warning", access: "/var/log/xray/access.log"},
-  dns: {servers: [$dns], tag: "dns-internal"},
+  dns: {servers: [$dns], tag: "dns-internal", queryStrategy: $qstrat},
   api: {tag: "api", services: ["StatsService"]},
   stats: {},
   policy: {levels: {"0": {statsUserUplink: true, statsUserDownlink: true}}},
@@ -103,7 +110,7 @@ jq -n --arg sni "$WV_SNI" --arg priv "$PRIV" --arg sid "$SID" --arg dns "$WV_DNS
                          "172.16.0.0/12","192.168.0.0/16","::1/128","fc00::/7","fe80::/10"], outboundTag: "block"}
   ]},
   outbounds: [
-    {tag: "direct", protocol: "freedom", streamSettings: {sockopt: {domainStrategy: "ForceIP"}}},
+    {tag: "direct", protocol: "freedom", streamSettings: {sockopt: {domainStrategy: $strat}}},
     {tag: "block", protocol: "blackhole"}
   ]
 }' > /etc/xray/config.json
