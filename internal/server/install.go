@@ -75,6 +75,8 @@ func Install(ctx context.Context, r remote.Runner, o InstallOptions, onStep func
 	if len(out) == 0 {
 		return res, errors.New("install: no result")
 	}
-	err = json.Unmarshal(out, &res)
-	return res, err
+	if err := json.Unmarshal(out, &res); err != nil {
+		return res, err
+	}
+	return res, uploadUninstaller(ctx, r)
 }

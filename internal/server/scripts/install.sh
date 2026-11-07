@@ -30,12 +30,18 @@ mf dir /etc/xray
 
 # ---- deps ----
 step deps
+installed_pkgs() { dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1=="ii"{print $2}' | sort; }
 need=()
 for p in curl unzip jq logrotate; do dpkg -s "$p" >/dev/null 2>&1 || need+=("$p"); done
 if [ ${#need[@]} -gt 0 ]; then
-  for p in "${need[@]}"; do mf pkg "$p"; done
+  before=$(installed_pkgs)
+  for p in "${need[@]}"; do mf pkg "$p"; done   # recorded first in case apt is interrupted
   apt-get update -qq >/dev/null
   apt-get install -y -qq --no-install-recommends "${need[@]}" >/dev/null
+  # also record dependencies apt pulled in, so uninstall restores the exact package set
+  comm -13 <(echo "$before") <(installed_pkgs) | while read -r p; do
+    case " ${need[*]} " in *" $p "*) ;; *) mf pkg "$p" ;; esac
+  done
 fi
 ok
 
@@ -193,7 +199,7 @@ ok
 # ---- verify ----
 step verify
 systemctl is-active --quiet xray
-ss -ltnH 'sport = :443' | grep -q .
+[ -n "$(ss -ltnH 'sport = :443')" ]
 ok
 rm -f "$LOG"
 printf '##RESULT {"publicKey":"%s","shortId":"%s","xrayVersion":"%s"}\n' "$PUB" "$SID" "$WV_XRAY_VERSION"
