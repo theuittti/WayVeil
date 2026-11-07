@@ -2,17 +2,19 @@
 
 Desktop app (Windows / Linux) that sets up your own VLESS + REALITY + Vision
 server over SSH and connects you and your friends with automatic split
-tunnelling. **Work in progress** — this repository currently contains the
-server core (Plan 1 of 3). See `docs/superpowers/specs/2026-11-07-wayveil-design.md`.
+tunnelling. **Work in progress** — this repository contains the server core
+(Plan 1) and the Linux client engine (Plan 2); the GUI comes in Plan 3.
+See `docs/superpowers/specs/2026-11-07-wayveil-design.md`.
 
 ## Developer quick start
 
 Requirements: Go ≥ 1.24, Docker (for integration tests), `make`.
 
 ```bash
-make test        # unit tests (also builds the wv-scan scanner assets)
-make it          # integration tests against a throwaway systemd+sshd container
-go build -o build/wayveil-dev ./cmd/wayveil-dev
+make build       # build/wayveil, build/wayveil-dev + pinned mihomo and xray binaries
+make test        # unit tests
+make it          # integration tests: throwaway server + TUN client containers
+make e2e         # end-to-end on your disposable test VPS (see below)
 ```
 
 ### `wayveil-dev` — server core from the terminal
@@ -32,6 +34,48 @@ wayveil-dev uninstall -host 203.0.113.10                    # removes everything
 The SSH password is used once and never stored: the tool authorises its own
 ed25519 key and saves a profile (host, pinned host key, private key) under
 `~/.config/wayveil/servers/` (mode 0600).
+
+### `wayveil` — the Linux client
+
+```bash
+wayveil import 'vless://…'        # or: wayveil import qr.png
+wayveil connect                   # asks once for permission to create the TUN interface
+wayveil status
+wayveil mode smart|all            # smart: only blocked-in-RU sites via VPN; all: everything
+wayveil rules proxy example.org   # always via VPN
+wayveil rules direct bank.ru      # always direct
+wayveil rules list | rm <domain>
+wayveil lists update              # block lists also refresh daily on connect
+wayveil disconnect
+```
+
+How it works: [mihomo](https://github.com/MetaCubeX/mihomo) owns the TUN
+interface, the routing rules and DNS (fake-ip: blocked names are never
+resolved locally; direct ones go to encrypted DoH). Traffic that must go
+through the VPN is handed to a local [xray](https://github.com/XTLS/Xray-core)
+client, which speaks VLESS + REALITY + Vision to your server — the same
+implementation as the server, so the handshake always matches.
+Block lists: [itdoginfo/allow-domains](https://github.com/itdoginfo/allow-domains)
+(`russia_inside` plus Telegram, Meta, Twitter, Discord IP ranges); a copy is
+bundled, so the first connect works even if GitHub is unreachable.
+Set `WAYVEIL_LOG_LEVEL=info` to log every routing decision to
+`~/.cache/wayveil/run/mihomo.log`.
+
+### End-to-end test on a real VPS
+
+Create `~/.config/wayveil-test/vps.env` (mode 0600, outside the repo):
+
+```
+WV_TEST_HOST=203.0.113.10
+WV_TEST_PORT=22
+WV_TEST_USER=root
+WV_TEST_PASS=…
+```
+
+`make e2e` reinstalls Wayveil on that server, connects a TUN client container
+and checks that proxied sites see the VPS IP and direct ones see yours. The
+password is used once to authorize a test key (`~/.config/wayveil-test/id_ed25519`);
+remove `WV_TEST_PASS` afterwards.
 
 ### Removing Wayveil from a server without the app
 

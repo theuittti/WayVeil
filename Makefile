@@ -40,3 +40,7 @@ build/xray:
 	curl -fsSL https://github.com/XTLS/Xray-core/releases/download/$(XRAY_VERSION)/Xray-linux-64.zip -o build/xray.d/x.zip
 	cd build/xray.d && unzip -qo x.zip xray && mv xray ../xray && cd .. && rm -rf xray.d
 	./build/xray version | head -1
+
+# End-to-end on the disposable test VPS from ~/.config/wayveil-test/vps.env.
+e2e: build
+	$(GO) test -tags e2e -count=1 -timeout 30m -v -run TestE2EVPS ./internal/engine/
