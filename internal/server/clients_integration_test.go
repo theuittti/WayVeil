@@ -20,8 +20,8 @@ var bg = context.Background()
 func TestClientsCRUD(t *testing.T) {
 	root, _, _ := installed(t, testenv.Start(t), "root", "wayveil")
 	a, err := AddClient(bg, root, "Вася ноутбук")
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || a.Name != "Вася ноутбук" || a.UUID == "" || a.Created.IsZero() {
+		t.Fatalf("add returned %+v %v", a, err)
 	}
 	b, err := AddClient(bg, root, `O'Brien "x"`)
 	if err != nil {
