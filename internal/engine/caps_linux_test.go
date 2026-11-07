@@ -9,16 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/theuittti/WayVeil/internal/singbox"
+	"github.com/theuittti/WayVeil/internal/mihomo"
 )
 
 func copyBin(t *testing.T) string {
 	t.Helper()
-	src, err := singbox.Find()
+	src, err := mihomo.Find()
 	if err != nil {
-		t.Skip("run make singbox")
+		t.Skip("run make mihomo")
 	}
-	dst := filepath.Join(t.TempDir(), "sing-box")
+	dst := filepath.Join(t.TempDir(), "mihomo")
 	in, _ := os.Open(src)
 	defer in.Close()
 	out, _ := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0o755)
@@ -59,12 +59,12 @@ func TestGrantCapsCommand(t *testing.T) {
 	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argv + "\nexit 126\n"
 	os.WriteFile(filepath.Join(dir, "pkexec"), []byte(script), 0o755)
 	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
-	err := GrantCaps(bg, "/opt/x/sing-box")
+	err := GrantCaps(bg, "/opt/x/mihomo")
 	if !errors.Is(err, ErrElevationDenied) {
 		t.Fatalf("%v", err)
 	}
 	got, _ := os.ReadFile(argv)
-	if strings.TrimSpace(string(got)) != "setcap\ncap_net_admin,cap_net_bind_service,cap_net_raw+ep\n/opt/x/sing-box" {
+	if strings.TrimSpace(string(got)) != "setcap\ncap_net_admin,cap_net_bind_service,cap_net_raw+ep\n/opt/x/mihomo" {
 		t.Fatalf("argv %q", got)
 	}
 }
@@ -74,8 +74,8 @@ func TestConnectNeedsElevation(t *testing.T) {
 		t.Skip("root needs no capabilities")
 	}
 	s, o := setup(t)
-	t.Setenv("WAYVEIL_SINGBOX", copyBin(t))
-	o.Inbound = singbox.TUN
+	t.Setenv("WAYVEIL_MIHOMO", copyBin(t))
+	o.Inbound = mihomo.TUN
 	e, _ := New(o)
 	if err := e.Connect(bg, s); !errors.Is(err, ErrNeedsElevation) {
 		t.Fatalf("%v", err)

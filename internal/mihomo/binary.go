@@ -1,4 +1,4 @@
-package singbox
+package mihomo
 
 import (
 	"errors"
@@ -7,15 +7,15 @@ import (
 	"runtime"
 )
 
-// Find locates the sing-box binary: $WAYVEIL_SINGBOX, next to the running
-// executable, then <repo>/build/sing-box (development).
+// Find locates the mihomo binary: $WAYVEIL_MIHOMO, next to the running
+// executable, then <repo>/build/mihomo (development).
 func Find() (string, error) {
-	name := "sing-box"
+	name := "mihomo"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
 	var cands []string
-	if p := os.Getenv("WAYVEIL_SINGBOX"); p != "" {
+	if p := os.Getenv("WAYVEIL_MIHOMO"); p != "" {
 		cands = append(cands, p)
 	}
 	if exe, err := os.Executable(); err == nil {
@@ -29,5 +29,5 @@ func Find() (string, error) {
 			return filepath.Abs(c)
 		}
 	}
-	return "", errors.New("sing-box binary not found (set WAYVEIL_SINGBOX or run make singbox)")
+	return "", errors.New("mihomo binary not found (set WAYVEIL_MIHOMO or run make mihomo)")
 }

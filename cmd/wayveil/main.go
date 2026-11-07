@@ -21,8 +21,8 @@ import (
 	"github.com/theuittti/WayVeil/internal/clientstore"
 	"github.com/theuittti/WayVeil/internal/engine"
 	"github.com/theuittti/WayVeil/internal/lists"
+	"github.com/theuittti/WayVeil/internal/mihomo"
 	"github.com/theuittti/WayVeil/internal/profile"
-	"github.com/theuittti/WayVeil/internal/singbox"
 )
 
 type engineAPI interface {
@@ -32,22 +32,22 @@ type engineAPI interface {
 }
 
 type deps struct {
-	out     io.Writer
-	engine  engineAPI
-	grant   func(ctx context.Context, bin string) error
-	update  func(context.Context, lists.Options) (lists.UpdateResult, error)
-	singbox func() (string, error)
+	out    io.Writer
+	engine engineAPI
+	grant  func(ctx context.Context, bin string) error
+	update func(context.Context, lists.Options) (lists.UpdateResult, error)
+	mihomo func() (string, error)
 }
 
 const listsMaxAge = 24 * time.Hour
 
 func main() {
-	eng, err := engine.New(engine.Options{Inbound: singbox.TUN})
+	eng, err := engine.New(engine.Options{Inbound: mihomo.TUN})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	os.Exit(run(os.Args[1:], deps{out: os.Stdout, engine: eng, grant: engine.GrantCaps, update: lists.Update, singbox: singbox.Find}))
+	os.Exit(run(os.Args[1:], deps{out: os.Stdout, engine: eng, grant: engine.GrantCaps, update: lists.Update, mihomo: mihomo.Find}))
 }
 
 func run(args []string, d deps) int {
@@ -154,7 +154,7 @@ func dispatch(ctx context.Context, args []string, d deps) error {
 		}
 		return updateLists(ctx, &s, d, true)
 	case "setup":
-		bin, err := d.singbox()
+		bin, err := d.mihomo()
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func connect(ctx context.Context, s *clientstore.Settings, d deps) error {
 	err := d.engine.Connect(ctx, *s)
 	if errors.Is(err, engine.ErrNeedsElevation) {
 		fmt.Fprintln(d.out, "Wayveil needs a one-time permission to create its network interface (TUN).")
-		bin, ferr := d.singbox()
+		bin, ferr := d.mihomo()
 		if ferr != nil {
 			return ferr
 		}

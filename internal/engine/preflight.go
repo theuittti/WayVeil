@@ -3,18 +3,18 @@ package engine
 import (
 	"errors"
 
-	"github.com/theuittti/WayVeil/internal/singbox"
+	"github.com/theuittti/WayVeil/internal/mihomo"
 )
 
 var (
-	// ErrNeedsElevation: sing-box lacks the capability to create the TUN
+	// ErrNeedsElevation: mihomo lacks the capability to create the TUN
 	// device; call GrantCaps once, then Connect again.
 	ErrNeedsElevation  = errors.New("needs_elevation")
 	ErrElevationDenied = errors.New("elevation_denied")
 )
 
 func (e *Engine) preflight(bin string) error {
-	if e.o.Inbound != singbox.TUN {
+	if e.o.Inbound != mihomo.TUN {
 		return nil
 	}
 	need, err := needsCaps(bin)

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Clash talks to sing-box's Clash-compatible API on 127.0.0.1.
+// Clash talks to mihomo's Clash-compatible API on 127.0.0.1.
 type Clash struct {
 	Addr, Secret string
 	HTTP         *http.Client

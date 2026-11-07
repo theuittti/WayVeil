@@ -36,7 +36,7 @@ func parseCapXattr(b []byte) bool {
 	return binary.LittleEndian.Uint32(b[4:8])&(1<<capNetAdmin) != 0
 }
 
-// GrantCaps asks once (polkit dialog) to let sing-box create the TUN device.
+// GrantCaps asks once (polkit dialog) to let mihomo create the TUN device.
 // Nothing else ever runs as root.
 func GrantCaps(ctx context.Context, bin string) error {
 	cmd := exec.CommandContext(ctx, "pkexec", "setcap", "cap_net_admin,cap_net_bind_service,cap_net_raw+ep", bin)

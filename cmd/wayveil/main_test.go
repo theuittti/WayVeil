@@ -65,7 +65,7 @@ func newHarness(t *testing.T) *harness {
 		update: func(context.Context, lists.Options) (lists.UpdateResult, error) {
 			return lists.UpdateResult{Updated: []string{"ru-blocked"}}, nil
 		},
-		singbox: func() (string, error) { return "/x/sing-box", nil },
+		mihomo: func() (string, error) { return "/x/mihomo", nil },
 	}
 	return h
 }

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"syscall"
 	"testing"
@@ -15,8 +16,8 @@ import (
 
 	"github.com/theuittti/WayVeil/internal/clientstore"
 	"github.com/theuittti/WayVeil/internal/link"
+	"github.com/theuittti/WayVeil/internal/mihomo"
 	"github.com/theuittti/WayVeil/internal/profile"
-	"github.com/theuittti/WayVeil/internal/singbox"
 )
 
 var bg = context.Background()
@@ -42,6 +43,27 @@ func hangingServer(t *testing.T) int {
 	return ln.Addr().(*net.TCPAddr).Port
 }
 
+// closingServer accepts TCP and closes at once: the proxy dial fails fast
+// and mihomo logs the failed connection with the rule that matched.
+func closingServer(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
 func freePort(t *testing.T) int {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	defer ln.Close()
@@ -50,15 +72,15 @@ func freePort(t *testing.T) int {
 
 func setup(t *testing.T) (clientstore.Settings, Options) {
 	t.Helper()
-	if _, err := singbox.Find(); err != nil {
-		t.Skip("run make singbox")
+	if _, err := mihomo.Find(); err != nil {
+		t.Skip("run make mihomo")
 	}
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	p := link.Params{UUID: "11111111-2222-3333-4444-555555555555", Host: "127.0.0.1", Port: hangingServer(t),
 		SNI: "www.nu.nl", PublicKey: "KjRhl1CVm-XAfrJdTiWyC3zui05Tcg2bMNRBZOH0CUM", ShortID: "9e5ee700"}
 	s := clientstore.Settings{Mode: clientstore.ModeSmart, Profile: &profile.Profile{Name: "test", Params: p}}
-	return s, Options{Inbound: singbox.Mixed, MixedPort: freePort(t)}
+	return s, Options{Inbound: mihomo.Mixed, MixedPort: freePort(t)}
 }
 
 func connect(t *testing.T, s clientstore.Settings, o Options) *Engine {
@@ -93,41 +115,44 @@ func TestConnectStatusDisconnect(t *testing.T) {
 		t.Fatalf("%+v", st)
 	}
 	if alive(pid) {
-		t.Fatal("sing-box still running")
+		t.Fatal("mihomo still running")
 	}
 	if err := e.Disconnect(bg); err != nil {
 		t.Fatalf("second disconnect: %v", err)
 	}
 }
 
-func TestRoutingDecisionViaClash(t *testing.T) {
+// mihomo lists a proxied connection in the Clash API only after the proxy
+// handshake, which never completes against the fake server, so the routing
+// decision is read from mihomo's info log. Real traffic: routing_integration_test.go.
+func TestRoutingDecision(t *testing.T) {
 	s, o := setup(t)
+	o.LogLevel = "info"
+	s.Profile.Params.Port = closingServer(t)
 	e := connect(t, s, o)
 	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
 	defer local.Close()
 	proxyURL, _ := url.Parse("socks5h://127.0.0.1:" + strconv.Itoa(o.MixedPort))
 	cl := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
-	go cl.Get("http://youtube.com/") // proxied: hangs on the fake server
+	go cl.Get("http://youtube.com/") // proxied: the fake server drops it
 	if _, err := cl.Get(local.URL); err != nil {
 		t.Fatalf("direct request: %v", err)
 	}
-	c, err := e.clash()
-	if err != nil {
+	if _, err := e.clash(); err != nil {
 		t.Fatal(err)
 	}
+	re := regexp.MustCompile(`dial proxy \(match RuleSet/ru-blocked\) \S+ --> youtube\.com:80`)
+	reDirect := regexp.MustCompile(`--> 127\.0\.0\.1:\d+ match IPCIDR\(127\.0\.0\.0/8\) using DIRECT`)
 	deadline := time.Now().Add(3 * time.Second)
+	var log []byte
 	for time.Now().Before(deadline) {
-		conns, _, err := c.Connections(bg)
-		if err == nil {
-			for _, x := range conns {
-				if x.Host == "youtube.com" && len(x.Chains) > 0 && x.Chains[0] == "proxy" {
-					return
-				}
-			}
+		log, _ = os.ReadFile(filepath.Join(e.dir, "mihomo.log"))
+		if re.Match(log) && reDirect.Match(log) {
+			return
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatal("youtube.com was not routed via proxy")
+	t.Fatalf("routing decisions not found in log:\n%s", log)
 }
 
 func TestProcessDiedReported(t *testing.T) {
@@ -152,7 +177,7 @@ func TestStaleProcessReplaced(t *testing.T) {
 	old := first.pid()
 	second := connect(t, s, o)
 	if alive(old) {
-		t.Fatal("old sing-box still running")
+		t.Fatal("old mihomo still running")
 	}
 	if second.Status(bg).State != Connected {
 		t.Fatal("second not connected")
