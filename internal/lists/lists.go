@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/theuittti/WayVeil/internal/appdir"
 	"github.com/theuittti/WayVeil/rules"
 )
 
@@ -29,6 +30,15 @@ type Options struct {
 type UpdateResult struct {
 	Updated, Kept []string
 	Errors        map[string]string
+}
+
+// DefaultDir is where the client keeps its rule-sets (CacheDir()/lists).
+func DefaultDir() (string, error) {
+	c, err := appdir.CacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(c, "lists"), nil
 }
 
 // Valid reports whether b looks like a sing-box binary rule-set.

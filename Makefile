@@ -25,3 +25,7 @@ build/sing-box:
 	mkdir -p build
 	curl -fsSL https://github.com/SagerNet/sing-box/releases/download/v$(SINGBOX_VERSION)/sing-box-$(SINGBOX_VERSION)-linux-amd64.tar.gz | tar -xz -C build --strip-components=1 sing-box-$(SINGBOX_VERSION)-linux-amd64/sing-box
 	./build/sing-box version | head -1
+
+build: singbox
+	$(GO) build -o build/wayveil ./cmd/wayveil
+	$(GO) build -o build/wayveil-dev ./cmd/wayveil-dev

@@ -84,7 +84,11 @@ func New(o Options) (*Engine, error) {
 			return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 		}
 	}
-	return &Engine{o: o, dir: dir, listsDir: filepath.Join(c, "lists")}, nil
+	ld, err := lists.DefaultDir()
+	if err != nil {
+		return nil, err
+	}
+	return &Engine{o: o, dir: dir, listsDir: ld}, nil
 }
 
 func (e *Engine) file(n string) string { return filepath.Join(e.dir, n) }
