@@ -10,7 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-07-wayveil-design.md` — sections 4.5, 4.6 (rules, mode, lists), 4.8, acceptance 5–8. Windows parts of 4.5 (service helper, wintun) move to Plan 3 (user decision 2026-11-07).
 
-## ⚠ Amendment 2026-11-07: client core is mihomo, not sing-box (user decision)
+## ⚠ Amendment 2 (2026-11-07, user decision): hybrid — mihomo for TUN/routing, xray for the last hop
+
+Amendment 1 below was based on a false positive (mihomo "worked" via its default DIRECT selection). Strict tests (proxy-only routing, server access log) show **neither sing-box 1.14.4 nor mihomo v1.19.33 passes REALITY against xray** (v26.10.31 down to v25.12.8, our config and the canonical XTLS one); the **xray client does**. Proven on the test server: mihomo TUN → `socks5` 127.0.0.1 → **xray client** → server; server access log shows `accepted tcp:www.youtube.com:443 [vless-in >> direct] email: c-…`. This is the v2rayN architecture.
+
+- mihomo keeps everything from Amendment 1 (TUN, rules, fake-ip DNS, Clash API) except the proxy: `{"name":"xray","type":"socks5","server":"127.0.0.1","port":<free>,"username","password" (random per run),"udp":true}`, wrapped in select group `proxy`; TUN `route-exclude-address` = server IPs so xray's own connection never enters the TUN.
+- New `internal/xrayclient`: builds the xray client config (socks inbound on 127.0.0.1 with password auth + udp; VLESS/REALITY/Vision outbound, `fingerprint: chrome`), validated with `xray run -test`. xray binary pinned to `server.XrayVersion`, `make xray` → `build/xray`, found via `$WAYVEIL_XRAY` / next to exe / `build/xray`.
+- Engine starts xray first (waits for the socks port), then mihomo; stops both; status is failed if either died. Only mihomo needs the TUN capability.
+
+## Amendment 1 (superseded in part): client core is mihomo, not sing-box
 
 Found during Task 8: xray-core ≥ v26.9.8 rejects sing-box's REALITY ClientHello (no X25519MLKEM768 key share; sing-box#4520, unfixed). Verified on the test server: sing-box 1.14.4 → no connection with any fingerprint; mihomo v1.19.33 → HTTP 200. Tasks 1–3 and 5–7 were done against sing-box; this amendment overrides the sing-box specifics everywhere below.
 
