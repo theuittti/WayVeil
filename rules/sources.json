@@ -1,0 +1,7 @@
+[
+  {"tag": "ru-blocked", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/russia_inside.srs"},
+  {"tag": "telegram",   "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/telegram.srs"},
+  {"tag": "meta",       "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/meta.srs"},
+  {"tag": "twitter",    "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/twitter.srs"},
+  {"tag": "discord",    "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/discord.srs"}
+]

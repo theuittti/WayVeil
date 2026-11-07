@@ -3,7 +3,7 @@
 package rules
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
 )
 
@@ -23,4 +23,31 @@ func DefaultTargets() Targets {
 		panic("rules/targets.json: " + err.Error())
 	}
 	return t
+}
+
+//go:embed sources.json
+var sourcesJSON []byte
+
+//go:embed lists/*.srs
+var bundled embed.FS
+
+// Source is where a sing-box rule-set is downloaded from.
+type Source struct {
+	Tag string `json:"tag"`
+	URL string `json:"url"`
+}
+
+// DefaultSources returns the rule-set sources bundled with the app.
+func DefaultSources() []Source {
+	var s []Source
+	if err := json.Unmarshal(sourcesJSON, &s); err != nil {
+		panic("rules/sources.json: " + err.Error())
+	}
+	return s
+}
+
+// Bundled returns the bundled copy of a rule-set by tag.
+func Bundled(tag string) ([]byte, bool) {
+	b, err := bundled.ReadFile("lists/" + tag + ".srs")
+	return b, err == nil
 }
