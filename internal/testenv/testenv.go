@@ -46,8 +46,11 @@ func Start(t *testing.T) *Env {
 		t.Skip("integration test: set WAYVEIL_IT=1")
 	}
 	docker(t, "build", "-q", "-t", image, filepath.Join(repoRoot(), "test", "server"))
-	id := docker(t, "run", "-d", "--privileged", "--cgroupns=host",
-		"-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw", "-p", "127.0.0.1::22", image)
+	// Not --privileged: /proc/sys stays read-only, so server scripts cannot
+	// change the developer machine's global sysctls (BBR step then warns,
+	// which is exactly the OpenVZ/LXC case we must handle).
+	id := docker(t, "run", "-d", "--cgroupns=host", "--tmpfs", "/run", "--tmpfs", "/run/lock",
+		"--tmpfs", "/tmp:exec", "-v", "/sys/fs/cgroup:/sys/fs/cgroup:rw", "-p", "127.0.0.1::22", image)
 	t.Cleanup(func() { exec.Command("docker", "rm", "-f", id).Run() })
 	hp := docker(t, "port", id, "22/tcp")
 	hp = strings.Split(hp, "\n")[0]
