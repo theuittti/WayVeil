@@ -1,4 +1,4 @@
-// Package lists keeps the sing-box rule-sets (blocked-in-RU domains and
+// Package lists keeps the mihomo rule-sets (blocked-in-RU domains and
 // per-service IPs) fresh, never replacing a good file with a bad download.
 package lists
 
@@ -22,7 +22,7 @@ const DefaultSourcesURL = "https://raw.githubusercontent.com/theuittti/WayVeil/m
 const maxSize = 4 << 20
 
 type Options struct {
-	Dir        string // where .srs files live
+	Dir        string // where .mrs files live
 	HTTP       *http.Client
 	SourcesURL string // "" = DefaultSourcesURL
 }
@@ -41,10 +41,15 @@ func DefaultDir() (string, error) {
 	return filepath.Join(c, "lists"), nil
 }
 
-// Valid reports whether b looks like a sing-box binary rule-set.
-func Valid(b []byte) bool { return len(b) > 3 && string(b[:3]) == "SRS" && len(b) < maxSize }
+// Valid reports whether b looks like a mihomo .mrs rule-set (zstd stream).
+func Valid(b []byte) bool {
+	return len(b) > 4 && b[0] == 0x28 && b[1] == 0xb5 && b[2] == 0x2f && b[3] == 0xfd && len(b) < maxSize
+}
 
-func path(dir, tag string) string { return filepath.Join(dir, tag+".srs") }
+// Path is where the rule-set with tag lives inside dir.
+func Path(dir, tag string) string { return filepath.Join(dir, tag+".mrs") }
+
+func path(dir, tag string) string { return Path(dir, tag) }
 
 func write(dir, tag string, b []byte) error {
 	tmp := path(dir, tag) + ".tmp"
@@ -127,7 +132,7 @@ func Update(ctx context.Context, o Options) (UpdateResult, error) {
 		case err != nil:
 			res.Errors[s.Tag] = err.Error()
 		case !Valid(b):
-			res.Errors[s.Tag] = "not a sing-box rule-set"
+			res.Errors[s.Tag] = "not a mihomo rule-set"
 		default:
 			if err := write(o.Dir, s.Tag, b); err != nil {
 				res.Errors[s.Tag] = err.Error()

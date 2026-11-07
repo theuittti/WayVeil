@@ -28,13 +28,14 @@ func DefaultTargets() Targets {
 //go:embed sources.json
 var sourcesJSON []byte
 
-//go:embed lists/*.srs
+//go:embed lists/*.mrs
 var bundled embed.FS
 
-// Source is where a sing-box rule-set is downloaded from.
+// Source is where a mihomo rule-set (.mrs) is downloaded from.
 type Source struct {
-	Tag string `json:"tag"`
-	URL string `json:"url"`
+	Tag      string `json:"tag"`
+	Behavior string `json:"behavior"` // "domain" | "ipcidr"
+	URL      string `json:"url"`
 }
 
 // DefaultSources returns the rule-set sources bundled with the app.
@@ -48,6 +49,6 @@ func DefaultSources() []Source {
 
 // Bundled returns the bundled copy of a rule-set by tag.
 func Bundled(tag string) ([]byte, bool) {
-	b, err := bundled.ReadFile("lists/" + tag + ".srs")
+	b, err := bundled.ReadFile("lists/" + tag + ".mrs")
 	return b, err == nil
 }

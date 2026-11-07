@@ -15,8 +15,9 @@ it: scanner singbox
 
 # Bundled rule-set copies (fallback when GitHub is unreachable). Refresh before releases.
 lists:
+	mkdir -p rules/lists
 	python3 -c 'import json;[print(s["tag"],s["url"]) for s in json.load(open("rules/sources.json"))]' | \
-	while read tag url; do curl -fsSL "$$url" -o "rules/lists/$$tag.srs" || exit 1; done
+	while read tag url; do curl -fsSL "$$url" -o "rules/lists/$$tag.mrs" || exit 1; done
 
 SINGBOX_VERSION := 1.14.4
 # Pinned sing-box binary for tests and local runs (build/ is gitignored).

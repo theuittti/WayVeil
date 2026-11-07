@@ -1,7 +1,11 @@
 [
-  {"tag": "ru-blocked", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/russia_inside.srs"},
-  {"tag": "telegram",   "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/telegram.srs"},
-  {"tag": "meta",       "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/meta.srs"},
-  {"tag": "twitter",    "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/twitter.srs"},
-  {"tag": "discord",    "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/discord.srs"}
+  {"tag": "ru-blocked", "behavior": "domain", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/russia_inside_domain.mrs"},
+  {"tag": "telegram-domain", "behavior": "domain", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/telegram_domain.mrs"},
+  {"tag": "telegram-ip", "behavior": "ipcidr", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/telegram_ipcidr.mrs"},
+  {"tag": "meta-domain", "behavior": "domain", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/meta_domain.mrs"},
+  {"tag": "meta-ip", "behavior": "ipcidr", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/meta_ipcidr.mrs"},
+  {"tag": "twitter-domain", "behavior": "domain", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/twitter_domain.mrs"},
+  {"tag": "twitter-ip", "behavior": "ipcidr", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/twitter_ipcidr.mrs"},
+  {"tag": "discord-domain", "behavior": "domain", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/discord_domain.mrs"},
+  {"tag": "discord-ip", "behavior": "ipcidr", "url": "https://github.com/itdoginfo/allow-domains/releases/latest/download/discord_ipcidr.mrs"}
 ]
