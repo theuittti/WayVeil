@@ -1,5 +1,28 @@
 package engine
 
-// preflight runs checks before starting sing-box (Task 6 adds the TUN
-// capability check).
-func (e *Engine) preflight(bin string) error { return nil }
+import (
+	"errors"
+
+	"github.com/theuittti/WayVeil/internal/singbox"
+)
+
+var (
+	// ErrNeedsElevation: sing-box lacks the capability to create the TUN
+	// device; call GrantCaps once, then Connect again.
+	ErrNeedsElevation  = errors.New("needs_elevation")
+	ErrElevationDenied = errors.New("elevation_denied")
+)
+
+func (e *Engine) preflight(bin string) error {
+	if e.o.Inbound != singbox.TUN {
+		return nil
+	}
+	need, err := needsCaps(bin)
+	if err != nil {
+		return err
+	}
+	if need {
+		return ErrNeedsElevation
+	}
+	return nil
+}
