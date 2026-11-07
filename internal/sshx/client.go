@@ -22,7 +22,8 @@ type Target struct {
 	User          string // default root
 	Password      string
 	PrivateKeyPEM []byte
-	HostKey       string // authorized_keys format; empty = trust on first use
+	HostKey       string        // authorized_keys format; empty = trust on first use
+	DialTimeout   time.Duration // TCP connect timeout, default 15s
 }
 
 var (
@@ -46,6 +47,9 @@ func Connect(ctx context.Context, t Target) (*Client, error) {
 	}
 	if t.User == "" {
 		t.User = "root"
+	}
+	if t.DialTimeout == 0 {
+		t.DialTimeout = 15 * time.Second
 	}
 	var auth []ssh.AuthMethod
 	if len(t.PrivateKeyPEM) > 0 {
@@ -86,7 +90,7 @@ func Connect(ctx context.Context, t Target) (*Client, error) {
 		},
 	}
 	addr := net.JoinHostPort(t.Host, strconv.Itoa(t.Port))
-	var d net.Dialer
+	d := net.Dialer{Timeout: t.DialTimeout}
 	raw, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return nil, err
