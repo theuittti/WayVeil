@@ -256,3 +256,32 @@ func TestMihomoCheck(t *testing.T) {
 		}
 	}
 }
+
+// Apps that learned a real IP outside our DNS (browser DoH, caches, hardcoded
+// IPs) must still be routed by domain: the sniffer reads TLS SNI / HTTP Host.
+func TestSnifferEnabled(t *testing.T) {
+	sn := build(t, input(t))["sniffer"].(obj)
+	sniff := sn["sniff"].(obj)
+	if sn["enable"] != true ||
+		!reflect.DeepEqual(sniff["TLS"].(obj)["ports"], []any{float64(443)}) ||
+		!reflect.DeepEqual(sniff["QUIC"].(obj)["ports"], []any{float64(443)}) ||
+		!reflect.DeepEqual(sniff["HTTP"].(obj)["ports"], []any{float64(80)}) || sniff["HTTP"].(obj)["override-destination"] != true {
+		t.Fatalf("%v", sn)
+	}
+}
+
+// LAN names (nas.local, router.lan) must keep working while connected: no
+// fake IPs for them, resolved by the system resolver.
+func TestLocalNamesUseSystemDNS(t *testing.T) {
+	d := build(t, input(t))["dns"].(obj)
+	filter := strs(d["fake-ip-filter"])
+	pol := d["nameserver-policy"].(obj)
+	for _, n := range []string{"+.lan", "+.local", "+.home.arpa", "+.localdomain", "localhost"} {
+		if !contains(filter, n) {
+			t.Errorf("fake-ip-filter lacks %s", n)
+		}
+		if !reflect.DeepEqual(strs(pol[n]), []string{"system"}) {
+			t.Errorf("nameserver-policy[%s] = %v", n, pol[n])
+		}
+	}
+}

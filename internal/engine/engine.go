@@ -103,7 +103,9 @@ func (e *Engine) file(n string) string { return filepath.Join(e.dir, n) }
 func (e *Engine) readRun() (runInfo, bool) {
 	var r runInfo
 	b, err := os.ReadFile(e.file("run.json"))
-	if err != nil || json.Unmarshal(b, &r) != nil || r.PID <= 0 {
+	// valid as soon as either process was recorded: xray starts first, and a
+	// failure before mihomo starts must still be able to stop it
+	if err != nil || json.Unmarshal(b, &r) != nil || (r.PID <= 0 && r.XrayPID <= 0) {
 		return r, false
 	}
 	return r, true
@@ -137,7 +139,7 @@ func alive(pid int) bool {
 // ownedBy checks pid is alive and really runs with our config (guards
 // against PID reuse).
 func ownedBy(pid int, config string) bool {
-	if !alive(pid) {
+	if pid <= 0 || !alive(pid) {
 		return false
 	}
 	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/cmdline")
@@ -377,10 +379,15 @@ func (e *Engine) logTail(n int) string {
 }
 
 // Disconnect stops mihomo (its TUN routes go first), then xray. Idempotent.
+// If mihomo died without cleaning up (kill -9, crash), its routing rules can
+// stay behind and break networking (seen: an IPv6 "unreachable" rule); a short
+// clean run of mihomo with the same config removes them.
 func (e *Engine) Disconnect(ctx context.Context) error {
 	if r, ok := e.readRun(); ok {
 		if ours(r) {
 			stop(r.PID)
+		} else if r.PID > 0 && e.o.Inbound == mihomo.TUN {
+			e.cleanupRoutes(r)
 		}
 		if xrayOurs(r) {
 			stop(r.XrayPID)
@@ -391,6 +398,30 @@ func (e *Engine) Disconnect(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+// cleanupRoutes starts mihomo with the previous config (it clears stale
+// rules on start) and stops it gracefully (it removes its rules on exit).
+func (e *Engine) cleanupRoutes(r runInfo) {
+	bin, err := mihomo.Find()
+	if err != nil {
+		return
+	}
+	if _, err := os.Stat(r.Config); err != nil {
+		return
+	}
+	pid, err := e.start(bin, "mihomo-cleanup.log", "-d", e.home, "-f", r.Config)
+	if err != nil {
+		return
+	}
+	c := Clash{Addr: r.ClashAddr, Secret: r.ClashSecret}
+	for i := 0; i < 50 && alive(pid); i++ {
+		if c.Version(context.Background()) == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	stop(pid)
 }
 
 // stop sends SIGTERM, then SIGKILL after 5s.

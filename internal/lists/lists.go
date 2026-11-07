@@ -3,6 +3,7 @@
 package lists
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/theuittti/WayVeil/internal/appdir"
 	"github.com/theuittti/WayVeil/rules"
@@ -41,9 +45,28 @@ func DefaultDir() (string, error) {
 	return filepath.Join(c, "lists"), nil
 }
 
-// Valid reports whether b looks like a mihomo .mrs rule-set (zstd stream).
-func Valid(b []byte) bool {
-	return len(b) > 4 && b[0] == 0x28 && b[1] == 0xb5 && b[2] == 0x2f && b[3] == 0xfd && len(b) < maxSize
+// Valid reports whether b is a complete mihomo .mrs rule-set of the given
+// behavior ("domain" | "ipcidr"): the zstd stream must decode fully and start
+// with the MRS v1 header. A truncated file keeps the zstd magic but fails here;
+// mihomo would otherwise accept it and silently route blocked sites direct.
+func Valid(b []byte, behavior string) bool {
+	if len(b) < 4 || len(b) >= maxSize || b[0] != 0x28 || b[1] != 0xb5 || b[2] != 0x2f || b[3] != 0xfd {
+		return false
+	}
+	d, err := zstd.NewReader(bytes.NewReader(b), zstd.WithDecoderMaxMemory(64<<20))
+	if err != nil {
+		return false
+	}
+	defer d.Close()
+	out, err := io.ReadAll(io.LimitReader(d, 64<<20))
+	if err != nil || len(out) < 5 || string(out[:4]) != "MRS\x01" {
+		return false
+	}
+	want := byte(0)
+	if behavior == "ipcidr" {
+		want = 1
+	}
+	return out[4] == want
 }
 
 // Path is where the rule-set with tag lives inside dir.
@@ -68,7 +91,7 @@ func Ensure(o Options) (map[string]string, error) {
 	out := map[string]string{}
 	for _, s := range rules.DefaultSources() {
 		p := path(o.Dir, s.Tag)
-		if b, err := os.ReadFile(p); err != nil || !Valid(b) {
+		if b, err := os.ReadFile(p); err != nil || !Valid(b, s.Behavior) {
 			bb, ok := rules.Bundled(s.Tag)
 			if !ok {
 				return nil, fmt.Errorf("no bundled copy of %s", s.Tag)
@@ -105,19 +128,31 @@ func get(ctx context.Context, c *http.Client, url string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, maxSize+1))
 }
 
-// sources fetches the remote source list, falling back to the bundled one.
+// sources returns the bundled sources, with download URLs overridden by the
+// remote copy on main — only for known tags and only https URLs, so a bad
+// remote file can neither invent paths nor downgrade to plain http.
 func (o Options) sources(ctx context.Context) []rules.Source {
+	src := rules.DefaultSources()
 	u := o.SourcesURL
 	if u == "" {
 		u = DefaultSourcesURL
 	}
-	if b, err := get(ctx, o.client(), u); err == nil {
-		var s []rules.Source
-		if json.Unmarshal(b, &s) == nil && len(s) > 0 {
-			return s
+	b, err := get(ctx, o.client(), u)
+	if err != nil {
+		return src
+	}
+	var remote []rules.Source
+	if json.Unmarshal(b, &remote) != nil {
+		return src
+	}
+	for i := range src {
+		for _, r := range remote {
+			if r.Tag == src[i].Tag && strings.HasPrefix(r.URL, "https://") {
+				src[i].URL = r.URL
+			}
 		}
 	}
-	return rules.DefaultSources()
+	return src
 }
 
 // Update downloads every source; a file is replaced only by a valid download.
@@ -131,7 +166,7 @@ func Update(ctx context.Context, o Options) (UpdateResult, error) {
 		switch {
 		case err != nil:
 			res.Errors[s.Tag] = err.Error()
-		case !Valid(b):
+		case !Valid(b, s.Behavior):
 			res.Errors[s.Tag] = "not a mihomo rule-set"
 		default:
 			if err := write(o.Dir, s.Tag, b); err != nil {

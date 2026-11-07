@@ -62,3 +62,21 @@ func (c *Client) Root(t *testing.T, cmd string) string {
 	t.Helper()
 	return c.exec(t, "root", cmd, true)
 }
+
+// Network creates a throwaway IPv6-enabled docker network.
+func Network(t *testing.T, subnet6 string) string {
+	t.Helper()
+	name := "wv6-" + strings.ToLower(strings.ReplaceAll(t.Name(), "/", "-"))
+	exec.Command("docker", "network", "rm", name).Run()
+	docker(t, "network", "create", "--ipv6", "--subnet", subnet6, name)
+	t.Cleanup(func() { exec.Command("docker", "network", "rm", name).Run() })
+	return name
+}
+
+// Attach connects a container to network and returns its IPv6 address there.
+func Attach(t *testing.T, network, container string) string {
+	t.Helper()
+	docker(t, "network", "connect", network, container)
+	t.Cleanup(func() { exec.Command("docker", "network", "disconnect", "-f", network, container).Run() })
+	return docker(t, "inspect", "-f", "{{(index .NetworkSettings.Networks \""+network+"\").GlobalIPv6Address}}", container)
+}

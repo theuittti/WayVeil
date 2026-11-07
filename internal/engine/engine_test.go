@@ -216,3 +216,41 @@ func TestConnectWithoutProfile(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+// fakeMihomo passes the config check (-t) and then makes itself
+// non-executable, so starting it fails after xray was already started.
+func fakeMihomo(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "mihomo")
+	os.WriteFile(p, []byte("#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = -t ] && { chmod -x \"$0\"; exit 0; }; done\nexit 1\n"), 0o755)
+	return p
+}
+
+// xrayRunning reports whether any process runs with our xray config.
+func xrayRunning(t *testing.T, cfg string) bool {
+	t.Helper()
+	procs, _ := filepath.Glob("/proc/[0-9]*/cmdline")
+	for _, p := range procs {
+		b, _ := os.ReadFile(p)
+		if strings.Contains(string(b), cfg) {
+			pid, _ := strconv.Atoi(strings.Split(p, "/")[2])
+			if alive(pid) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestNoOrphanXrayWhenMihomoFails(t *testing.T) {
+	s, o := setup(t)
+	t.Setenv("WAYVEIL_MIHOMO", fakeMihomo(t))
+	e, _ := New(o)
+	if err := e.Connect(bg, s); err == nil {
+		t.Fatal("expected failure")
+	}
+	time.Sleep(200 * time.Millisecond)
+	if xrayRunning(t, filepath.Join(e.dir, "xray.json")) {
+		t.Fatal("xray left running after a failed Connect")
+	}
+}

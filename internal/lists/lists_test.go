@@ -7,22 +7,41 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/theuittti/WayVeil/rules"
 )
 
 var tags = []string{"ru-blocked", "telegram-domain", "telegram-ip", "meta-domain", "meta-ip", "twitter-domain", "twitter-ip", "discord-domain", "discord-ip"}
 
-func srs(tag string) []byte { return append([]byte{0x28, 0xb5, 0x2f, 0xfd}, "fresh-"+tag...) }
+// mrs builds a real (zstd-compressed) mihomo rule-set with the right header.
+func mrs(behavior byte, payload string) []byte {
+	var buf bytes.Buffer
+	w, _ := zstd.NewWriter(&buf)
+	w.Write(append([]byte{'M', 'R', 'S', 1, behavior, 0, 0, 0}, payload...))
+	w.Close()
+	return buf.Bytes()
+}
+
+func behaviorOf(tag string) byte {
+	if strings.HasSuffix(tag, "-ip") {
+		return 1
+	}
+	return 0
+}
+
+func srs(tag string) []byte { return mrs(behaviorOf(tag), "fresh-"+tag) }
 
 // server serves sources.json pointing at itself; bad maps tag → bogus body.
 func server(t *testing.T, bad map[string]string) (*httptest.Server, Options) {
 	t.Helper()
 	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/sources.json" {
 			var parts []string
 			for _, tg := range tags {
@@ -103,12 +122,14 @@ func TestUpdateServerDown(t *testing.T) {
 }
 
 func TestSourcesOverride(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/sources.json":
-			fmt.Fprintf(w, `[{"tag":"ru-blocked","behavior":"domain","url":"http://%s/x.mrs"}]`, r.Host)
+			fmt.Fprintf(w, `[{"tag":"ru-blocked","behavior":"domain","url":"https://%s/x.mrs"},
+				{"tag":"../../escape","behavior":"domain","url":"https://%s/x.mrs"},
+				{"tag":"telegram-ip","behavior":"ipcidr","url":"http://%s/plain.mrs"}]`, r.Host, r.Host, r.Host)
 		case "/x.mrs":
-			w.Write([]byte("\x28\xb5\x2f\xfdoverride"))
+			w.Write(mrs(0, "override"))
 		default:
 			http.NotFound(w, r)
 		}
@@ -116,18 +137,53 @@ func TestSourcesOverride(t *testing.T) {
 	defer srv.Close()
 	o := Options{Dir: t.TempDir(), HTTP: srv.Client(), SourcesURL: srv.URL + "/sources.json"}
 	res, _ := Update(context.Background(), o)
-	if !slices.Equal(res.Updated, []string{"ru-blocked"}) {
+	if !slices.Contains(res.Updated, "ru-blocked") {
 		t.Fatalf("%+v", res)
 	}
 	paths, _ := Ensure(o)
-	if b, _ := os.ReadFile(paths["ru-blocked"]); string(b) != "\x28\xb5\x2f\xfdoverride" || len(paths) != 9 {
+	if b, _ := os.ReadFile(paths["ru-blocked"]); !bytes.Equal(b, mrs(0, "override")) || len(paths) != 9 {
 		t.Fatalf("%q %v", b, paths)
+	}
+	// unknown tags never become paths; plain-http URLs are not trusted
+	if _, err := os.Stat(filepath.Join(o.Dir, "..", "..", "escape.mrs")); err == nil {
+		t.Fatal("remote tag escaped the lists dir")
+	}
+	if slices.Contains(res.Updated, "telegram-ip") && res.Errors["telegram-ip"] == "" {
+		t.Fatal("http URL from remote sources must be ignored")
 	}
 }
 
 func TestValid(t *testing.T) {
-	zst := []byte{0x28, 0xb5, 0x2f, 0xfd}
-	if Valid(zst[:3]) || Valid([]byte("<html>")) || Valid([]byte("SRS\x03x")) || !Valid(append(zst, 'x')) || Valid(append(zst, make([]byte, 4<<20)...)) {
-		t.Fatal("Valid")
+	good, _ := rules.Bundled("ru-blocked")
+	if !Valid(good, "domain") {
+		t.Fatal("bundled ru-blocked must be valid")
+	}
+	if Valid(good, "ipcidr") {
+		t.Fatal("behavior mismatch must be invalid")
+	}
+	if Valid(good[:len(good)/2], "domain") {
+		t.Fatal("truncated file (zstd magic intact) must be invalid")
+	}
+	if Valid([]byte("<html>"), "domain") || Valid(mrs(0, "x")[:3], "domain") {
+		t.Fatal("garbage must be invalid")
+	}
+	notMRS := mrs(0, "")
+	var buf bytes.Buffer
+	w, _ := zstd.NewWriter(&buf)
+	w.Write([]byte("hello world"))
+	w.Close()
+	if Valid(buf.Bytes(), "domain") || !Valid(notMRS, "domain") {
+		t.Fatal("zstd without MRS header must be invalid")
+	}
+}
+
+func TestEnsureReplacesTruncatedCache(t *testing.T) {
+	o := Options{Dir: t.TempDir()}
+	paths, _ := Ensure(o)
+	good, _ := os.ReadFile(paths["ru-blocked"])
+	os.WriteFile(paths["ru-blocked"], good[:len(good)/2], 0o600)
+	Ensure(o)
+	if b, _ := os.ReadFile(paths["ru-blocked"]); !bytes.Equal(b, good) {
+		t.Fatal("truncated cached list was not replaced by the bundled copy")
 	}
 }

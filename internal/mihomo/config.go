@@ -25,6 +25,9 @@ const (
 
 const localDNS = "https://77.88.8.8/dns-query"
 
+// localNames never get fake IPs and are resolved by the system resolver.
+var localNames = []string{"+.lan", "+.local", "+.home.arpa", "+.localdomain", "localhost"}
+
 var privateV4 = []string{"10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.168.0.0/16"}
 var privateV6 = []string{"::1/128", "fc00::/7", "fe80::/10"}
 
@@ -107,11 +110,17 @@ func Build(in Input) ([]byte, error) {
 	// resolved locally (the server resolves it inside the tunnel) and direct
 	// domains are resolved by mihomo over encrypted DoH. DNS "via #proxy" is
 	// deliberately not used: it fails REALITY against xray >= 26.9.8.
+	policy := o{}
+	for _, n := range localNames { // LAN names keep working while connected
+		policy[n] = []string{"system"}
+	}
 	dns := o{
 		"enable": true, "ipv6": false, "enhanced-mode": "fake-ip", "fake-ip-range": "198.18.0.1/16",
+		"fake-ip-filter":          localNames,
 		"default-nameserver":      []string{"77.88.8.8"},
 		"nameserver":              []string{localDNS},
 		"proxy-server-nameserver": []string{localDNS},
+		"nameserver-policy":       policy,
 	}
 
 	// ---- proxy: the local xray client (it speaks REALITY to the server) ----
@@ -135,6 +144,13 @@ func Build(in Input) ([]byte, error) {
 		"profile":             o{"store-selected": false, "store-fake-ip": false},
 		"external-controller": in.ClashAddr, "secret": in.ClashSecret,
 		"dns": dns, "proxies": a{proxy}, "rules": r,
+		// Route by domain even when an app learned a real IP outside our DNS
+		// (browser DoH, caches, hardcoded addresses).
+		"sniffer": o{"enable": true, "sniff": o{
+			"TLS":  o{"ports": []int{443}},
+			"QUIC": o{"ports": []int{443}},
+			"HTTP": o{"ports": []int{80}, "override-destination": true},
+		}},
 		"proxy-groups": a{o{"name": "proxy", "type": "select", "proxies": []string{"xray"}}},
 	}
 	if smart {
