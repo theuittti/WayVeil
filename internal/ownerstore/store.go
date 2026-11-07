@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
+
+	"github.com/theuittti/WayVeil/internal/appdir"
 )
 
 type ServerProfile struct {
@@ -21,18 +22,8 @@ type ServerProfile struct {
 	AuthorizedLine string `json:"authorizedLine"`
 }
 
-// Dir is the app config directory: %APPDATA%\Wayveil or ~/.config/wayveil.
-func Dir() (string, error) {
-	base, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	name := "wayveil"
-	if runtime.GOOS == "windows" {
-		name = "Wayveil"
-	}
-	return filepath.Join(base, name), nil
-}
+// Dir is the app config directory (see appdir.ConfigDir).
+func Dir() (string, error) { return appdir.ConfigDir() }
 
 func path(host string, port int) (string, error) {
 	d, err := Dir()
