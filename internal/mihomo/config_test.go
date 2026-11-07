@@ -23,6 +23,7 @@ func input(t *testing.T) Input {
 		ListsDir:  "lists",
 		Inbound:   TUN,
 		ClashAddr: "127.0.0.1:39090", ClashSecret: "s3cr3t",
+		XrayPort: 10808, XrayUser: "wv", XrayPass: "p4ss",
 	}
 }
 
@@ -101,9 +102,6 @@ func TestAllMode(t *testing.T) {
 	if !contains(r, "DOMAIN-SUFFIX,gosuslugi.ru,DIRECT") {
 		t.Fatal("always-direct missing in all mode")
 	}
-	if ns := strs(m["dns"].(obj)["nameserver"]); !reflect.DeepEqual(ns, []string{"https://1.1.1.1/dns-query#proxy"}) {
-		t.Fatalf("all-mode nameserver %v", ns)
-	}
 	if _, ok := m["rule-providers"]; ok {
 		t.Fatal("no rule-providers needed in all mode")
 	}
@@ -138,11 +136,19 @@ func TestServerExcluded(t *testing.T) {
 			t.Fatalf("%s missing or after proxy rules: %v", want, r)
 		}
 	}
+	// Hybrid: proxied traffic goes to the local xray client (socks5), which
+	// carries it to the server; the server's IPs never enter the TUN.
 	p := m["proxies"].([]any)[0].(obj)
-	if p["name"] != "proxy" || p["server"] != "198.51.100.7" || p["type"] != "vless" || p["flow"] != "xtls-rprx-vision" ||
-		p["servername"] != "www.nu.nl" || p["client-fingerprint"] != "chrome" || p["tls"] != true ||
-		p["reality-opts"].(obj)["public-key"] != in.Server.PublicKey || p["reality-opts"].(obj)["short-id"] != "9e5ee700" {
+	g := m["proxy-groups"].([]any)[0].(obj)
+	if g["name"] != "proxy" || g["type"] != "select" || !reflect.DeepEqual(strs(g["proxies"]), []string{"xray"}) {
+		t.Fatalf("group %v", g)
+	}
+	if p["name"] != "xray" || p["type"] != "socks5" || p["server"] != "127.0.0.1" || p["port"] != float64(10808) ||
+		p["username"] != "wv" || p["password"] != "p4ss" || p["udp"] != true {
 		t.Fatalf("proxy %v", p)
+	}
+	if ex := strs(m["tun"].(obj)["route-exclude-address"]); !reflect.DeepEqual(ex, []string{"2001:db8::7/128", "198.51.100.7/32"}) {
+		t.Fatalf("route-exclude-address %v", ex)
 	}
 }
 
@@ -155,27 +161,30 @@ func indexOf(l []string, s string) int {
 	return -1
 }
 
+// fake-ip: proxied domains are never resolved locally (the server resolves
+// them inside the tunnel); direct ones go to encrypted DoH. mihomo's DNS
+// "#proxy" path fails REALITY against xray >= 26.9.8, so it must not be used.
 func TestDNSNoLeak(t *testing.T) {
-	in := input(t)
-	in.AlwaysProxy = []string{"example.org"}
-	in.AlwaysDirect = []string{"youtube.com"}
-	d := build(t, in)["dns"].(obj)
-	if d["enable"] != true || d["ipv6"] != false || d["enhanced-mode"] != "redir-host" {
-		t.Fatalf("%v", d)
-	}
-	if ns := strs(d["nameserver"]); !reflect.DeepEqual(ns, []string{"https://77.88.8.8/dns-query"}) {
-		t.Fatalf("nameserver %v", ns)
-	}
-	pol := d["nameserver-policy"].(obj)
-	remote := []string{"https://1.1.1.1/dns-query#proxy"}
-	if !reflect.DeepEqual(strs(pol["rule-set:ru-blocked,telegram-domain,meta-domain,twitter-domain,discord-domain"]), remote) ||
-		!reflect.DeepEqual(strs(pol["+.example.org"]), remote) ||
-		!reflect.DeepEqual(strs(pol["+.youtube.com"]), []string{"https://77.88.8.8/dns-query"}) {
-		t.Fatalf("policy %v", pol)
-	}
-	tun := build(t, input(t))["tun"].(obj)
-	if !reflect.DeepEqual(strs(tun["dns-hijack"]), []string{"any:53"}) {
-		t.Fatal("dns-hijack")
+	for _, mode := range []clientstore.Mode{clientstore.ModeSmart, clientstore.ModeAll} {
+		in := input(t)
+		in.Mode = mode
+		in.AlwaysProxy = []string{"example.org"}
+		in.AlwaysDirect = []string{"youtube.com"}
+		m := build(t, in)
+		d := m["dns"].(obj)
+		if d["enable"] != true || d["ipv6"] != false || d["enhanced-mode"] != "fake-ip" || d["fake-ip-range"] != "198.18.0.1/16" {
+			t.Fatalf("%s: %v", mode, d)
+		}
+		if ns := strs(d["nameserver"]); !reflect.DeepEqual(ns, []string{"https://77.88.8.8/dns-query"}) {
+			t.Fatalf("%s: nameserver %v", mode, ns)
+		}
+		b, _ := Build(in)
+		if strings.Contains(string(b), "#proxy") {
+			t.Fatalf("%s: DNS through the proxy is broken with REALITY+MLKEM, must not be used", mode)
+		}
+		if !reflect.DeepEqual(strs(m["tun"].(obj)["dns-hijack"]), []string{"any:53"}) {
+			t.Fatal("dns-hijack")
+		}
 	}
 }
 
@@ -183,7 +192,7 @@ func TestTUNShape(t *testing.T) {
 	m := build(t, input(t))
 	tun := m["tun"].(obj)
 	if tun["enable"] != true || tun["device"] != "wayveil0" || tun["auto-route"] != true || tun["strict-route"] != true ||
-		tun["auto-detect-interface"] != true || !reflect.DeepEqual(strs(tun["inet4-address"]), []string{"172.19.0.1/30"}) {
+		tun["auto-detect-interface"] != true || tun["stack"] != "mixed" {
 		t.Fatalf("%v", tun)
 	}
 	if m["ipv6"] != false {

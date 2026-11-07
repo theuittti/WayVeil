@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/theuittti/WayVeil/internal/link"
 	"github.com/theuittti/WayVeil/internal/mihomo"
 	"github.com/theuittti/WayVeil/internal/profile"
+	"github.com/theuittti/WayVeil/internal/xrayclient"
 )
 
 var bg = context.Background()
@@ -74,6 +76,9 @@ func setup(t *testing.T) (clientstore.Settings, Options) {
 	t.Helper()
 	if _, err := mihomo.Find(); err != nil {
 		t.Skip("run make mihomo")
+	}
+	if _, err := xrayclient.Find(); err != nil {
+		t.Skip("run make xray")
 	}
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -141,7 +146,7 @@ func TestRoutingDecision(t *testing.T) {
 	if _, err := e.clash(); err != nil {
 		t.Fatal(err)
 	}
-	re := regexp.MustCompile(`dial proxy \(match RuleSet/ru-blocked\) \S+ --> youtube\.com:80`)
+	re := regexp.MustCompile(`RuleSet[(/]ru-blocked.*youtube\.com:80|youtube\.com:80.*RuleSet[(/]ru-blocked`)
 	reDirect := regexp.MustCompile(`--> 127\.0\.0\.1:\d+ match IPCIDR\(127\.0\.0\.0/8\) using DIRECT`)
 	deadline := time.Now().Add(3 * time.Second)
 	var log []byte
@@ -168,6 +173,26 @@ func TestProcessDiedReported(t *testing.T) {
 	}
 	if err := e.Connect(bg, s); err != nil {
 		t.Fatalf("reconnect: %v", err)
+	}
+}
+
+func TestXrayDiedReported(t *testing.T) {
+	s, o := setup(t)
+	e := connect(t, s, o)
+	r, _ := e.readRun()
+	if !alive(r.XrayPID) {
+		t.Fatal("xray not running")
+	}
+	syscall.Kill(r.XrayPID, syscall.SIGKILL)
+	time.Sleep(300 * time.Millisecond)
+	if st := e.Status(bg); st.State != Failed || !strings.Contains(st.Error, "xray") {
+		t.Fatalf("%+v", st)
+	}
+	if err := e.Disconnect(bg); err != nil {
+		t.Fatal(err)
+	}
+	if alive(r.PID) {
+		t.Fatal("mihomo must be stopped too")
 	}
 }
 

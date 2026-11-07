@@ -42,7 +42,7 @@ type deps struct {
 const listsMaxAge = 24 * time.Hour
 
 func main() {
-	eng, err := engine.New(engine.Options{Inbound: mihomo.TUN})
+	eng, err := engine.New(engine.Options{Inbound: mihomo.TUN, LogLevel: os.Getenv("WAYVEIL_LOG_LEVEL")})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

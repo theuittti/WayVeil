@@ -1,16 +1,16 @@
 GO ?= go
 ASSETS := internal/server/assets
 
-.PHONY: test it scanner lists mihomo build e2e
+.PHONY: test it scanner lists mihomo xray build e2e
 
 scanner:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "-s -w" -o $(ASSETS)/wv-scan-linux-amd64 ./cmd/wv-scan
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "-s -w" -o $(ASSETS)/wv-scan-linux-arm64 ./cmd/wv-scan
 
-test: scanner mihomo
+test: scanner mihomo xray
 	$(GO) test ./...
 
-it: scanner mihomo
+it: scanner mihomo xray
 	WAYVEIL_IT=1 $(GO) test -tags integration -count=1 -timeout 20m ./...
 
 # Bundled rule-set copies (fallback when GitHub is unreachable). Refresh before releases.
@@ -28,6 +28,15 @@ build/mihomo:
 	chmod +x build/mihomo.tmp && mv build/mihomo.tmp build/mihomo
 	./build/mihomo -v | head -1
 
-build: mihomo
+build: mihomo xray
 	$(GO) build -o build/wayveil ./cmd/wayveil
 	$(GO) build -o build/wayveil-dev ./cmd/wayveil-dev
+
+XRAY_VERSION := v26.10.31
+# Pinned xray client binary (same release as the server, internal/server.XrayVersion).
+xray: build/xray
+build/xray:
+	mkdir -p build/xray.d
+	curl -fsSL https://github.com/XTLS/Xray-core/releases/download/$(XRAY_VERSION)/Xray-linux-64.zip -o build/xray.d/x.zip
+	cd build/xray.d && unzip -qo x.zip xray && mv xray ../xray && cd .. && rm -rf xray.d
+	./build/xray version | head -1

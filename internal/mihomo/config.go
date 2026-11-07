@@ -23,10 +23,7 @@ const (
 	Mixed                    // socks/http on 127.0.0.1 (tests, debugging)
 )
 
-const (
-	localDNS  = "https://77.88.8.8/dns-query"
-	remoteDNS = "https://1.1.1.1/dns-query#proxy" // resolved through the tunnel
-)
+const localDNS = "https://77.88.8.8/dns-query"
 
 var privateV4 = []string{"10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.168.0.0/16"}
 var privateV6 = []string{"::1/128", "fc00::/7", "fe80::/10"}
@@ -40,7 +37,10 @@ type Input struct {
 	Inbound                   InboundKind
 	MixedPort                 int
 	ClashAddr, ClashSecret    string
-	LogLevel                  string // default "warning"; "info" logs every routing decision
+	// Hybrid last hop: the local xray client's socks inbound.
+	XrayPort           int
+	XrayUser, XrayPass string
+	LogLevel           string // default "warning"; "info" logs every routing decision
 }
 
 type (
@@ -64,13 +64,6 @@ func Build(in Input) ([]byte, error) {
 			domainSets = append(domainSets, s.Tag)
 		}
 		providers[s.Tag] = o{"type": "file", "behavior": s.Behavior, "format": "mrs", "path": lists.Path(in.ListsDir, s.Tag)}
-	}
-
-	dial := in.ServerIPs[0]
-	for _, ip := range in.ServerIPs {
-		if ip.Is4() && !dial.Is4() {
-			dial = ip
-		}
 	}
 
 	// ---- rules ----
@@ -110,49 +103,27 @@ func Build(in Input) ([]byte, error) {
 	}
 
 	// ---- dns ----
+	// fake-ip: apps get placeholder addresses, so a proxied domain is never
+	// resolved locally (the server resolves it inside the tunnel) and direct
+	// domains are resolved by mihomo over encrypted DoH. DNS "via #proxy" is
+	// deliberately not used: it fails REALITY against xray >= 26.9.8.
 	dns := o{
-		"enable": true, "ipv6": false, "enhanced-mode": "redir-host",
+		"enable": true, "ipv6": false, "enhanced-mode": "fake-ip", "fake-ip-range": "198.18.0.1/16",
 		"default-nameserver":      []string{"77.88.8.8"},
+		"nameserver":              []string{localDNS},
 		"proxy-server-nameserver": []string{localDNS},
 	}
-	policy := o{}
-	for _, d := range in.AlwaysDirect {
-		policy["+."+d] = []string{localDNS}
-	}
-	if smart {
-		dns["nameserver"] = []string{localDNS}
-		key := "rule-set:"
-		for i, t := range domainSets {
-			if i > 0 {
-				key += ","
-			}
-			key += t
-		}
-		policy[key] = []string{remoteDNS}
-		for _, d := range in.AlwaysProxy {
-			policy["+."+d] = []string{remoteDNS}
-		}
-	} else {
-		dns["nameserver"] = []string{remoteDNS}
-	}
-	if len(policy) > 0 {
-		dns["nameserver-policy"] = policy
-	}
 
-	// ---- proxy ----
-	s := in.Server
-	fp := s.Fingerprint
-	if fp == "" {
-		fp = "chrome"
+	// ---- proxy: the local xray client (it speaks REALITY to the server) ----
+	if in.XrayPort == 0 || in.XrayUser == "" || in.XrayPass == "" {
+		return nil, errors.New("mihomo: xray socks port and credentials required")
 	}
-	port := s.Port
-	if port == 0 {
-		port = 443
+	proxy := o{"name": "xray", "type": "socks5", "server": "127.0.0.1", "port": in.XrayPort,
+		"username": in.XrayUser, "password": in.XrayPass, "udp": true}
+	var exclude []string
+	for _, ip := range in.ServerIPs {
+		exclude = append(exclude, netip.PrefixFrom(ip, ip.BitLen()).String())
 	}
-	proxy := o{"name": "proxy", "type": "vless", "server": dial.String(), "port": port, "uuid": s.UUID,
-		"network": "tcp", "tls": true, "udp": true, "flow": "xtls-rprx-vision",
-		"servername": s.SNI, "client-fingerprint": fp,
-		"reality-opts": o{"public-key": s.PublicKey, "short-id": s.ShortID}}
 
 	logLevel := in.LogLevel
 	if logLevel == "" {
@@ -164,6 +135,7 @@ func Build(in Input) ([]byte, error) {
 		"profile":             o{"store-selected": false, "store-fake-ip": false},
 		"external-controller": in.ClashAddr, "secret": in.ClashSecret,
 		"dns": dns, "proxies": a{proxy}, "rules": r,
+		"proxy-groups": a{o{"name": "proxy", "type": "select", "proxies": []string{"xray"}}},
 	}
 	if smart {
 		cfg["rule-providers"] = providers
@@ -173,8 +145,9 @@ func Build(in Input) ([]byte, error) {
 		cfg["bind-address"] = "127.0.0.1"
 	} else {
 		cfg["tun"] = o{"enable": true, "device": "wayveil0", "stack": "mixed", "auto-route": true,
-			"auto-detect-interface": true, "strict-route": true, "dns-hijack": []string{"any:53"},
-			"inet4-address": []string{"172.19.0.1/30"}, "mtu": 1500}
+			"auto-detect-interface": true, "strict-route": true, "dns-hijack": []string{"any:53"}, "mtu": 1500,
+			// xray's own connection to the server must never enter the TUN
+			"route-exclude-address": exclude}
 	}
 	return json.MarshalIndent(cfg, "", "  ")
 }
