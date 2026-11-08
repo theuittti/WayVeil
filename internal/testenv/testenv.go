@@ -103,3 +103,25 @@ func Sh(t *testing.T, c *sshx.Client, cmd string) string {
 	}
 	return strings.TrimSpace(string(out))
 }
+
+// Refresh re-reads the published SSH port and waits for sshd (needed after
+// attaching another network, which can re-create the port mapping).
+func (e *Env) Refresh(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		if hp := strings.Split(docker(t, "port", e.Container, "22/tcp"), "\n")[0]; hp != "" {
+			if _, p, err := net.SplitHostPort(hp); err == nil {
+				e.Port, _ = strconv.Atoi(p)
+				if c, err := sshx.Connect(context.Background(), e.Target("root", "wayveil")); err == nil {
+					c.Close()
+					return
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("ssh not reachable after network change")
+		}
+		time.Sleep(time.Second)
+	}
+}
