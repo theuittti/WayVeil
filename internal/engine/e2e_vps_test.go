@@ -61,8 +61,20 @@ func TestE2EVPS(t *testing.T) {
 	})
 	t.Logf("target: %s", sni)
 	_, appKey, _ := sshx.GenerateKey() // throwaway "app" key; our test key stays outside the manifest
-	if _, err := server.Install(bg, root, server.InstallOptions{Address: vpsIP, SNI: sni, AuthUser: user, AuthKeyLine: appKey, XrayZip: testenv.XrayZip()}, nil); err != nil {
-		t.Fatalf("install: %v", err)
+	var steps []string
+	_, err = server.Install(bg, root, server.InstallOptions{Address: vpsIP, SNI: sni, AuthUser: user, AuthKeyLine: appKey, XrayZip: testenv.XrayZip()},
+		func(st server.StepEvent) {
+			steps = append(steps, st.ID+":"+string(st.Status)+" "+st.Message)
+			t.Logf("  install step %-12s %s %s (%s)", st.ID, st.Status, st.Message, time.Now().Format("15:04:05"))
+		})
+	if err != nil {
+		var se *server.ScriptError
+		if errors.As(err, &se) {
+			t.Logf("install failed: %s: %s", se.Code, se.Message)
+		}
+		out, _ := root.Run(bg, "ls -t /tmp/wayveil-install.* 2>/dev/null | head -1 | xargs -r tail -n 30; "+
+			"echo '--- apt/dpkg holders:'; ps -eo pid,etime,cmd | grep -E '[a]pt|[d]pkg|[u]nattended' | head", nil)
+		t.Fatalf("install: %v\nsteps: %v\nserver log:\n%s", err, steps, out)
 	}
 	cl, err := server.AddClient(bg, root, "e2e")
 	if err != nil {
