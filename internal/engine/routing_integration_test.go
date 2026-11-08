@@ -25,7 +25,7 @@ func tunClientWithServer(t *testing.T) (*testenv.Client, *sshx.Client) {
 	e := testenv.Start(t)
 	root := e.Root(t)
 	_, line, _ := sshx.GenerateKey()
-	if _, err := server.Install(bg, root, server.InstallOptions{Address: e.IP(t), SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}, nil); err != nil {
+	if _, err := server.Install(bg, root, server.InstallOptions{Address: e.IP(t), SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	cl, err := server.AddClient(bg, root, "it")

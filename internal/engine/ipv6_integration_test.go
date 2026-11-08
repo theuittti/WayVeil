@@ -19,7 +19,7 @@ func TestTUNIPv6NoBypass(t *testing.T) {
 	e := testenv.Start(t)
 	root := e.Root(t)
 	_, line, _ := sshx.GenerateKey()
-	if _, err := server.Install(bg, root, server.InstallOptions{Address: e.IP(t), SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}, nil); err != nil {
+	if _, err := server.Install(bg, root, server.InstallOptions{Address: e.IP(t), SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	cl, _ := server.AddClient(bg, root, "v6")

@@ -41,7 +41,7 @@ func TestFailedInstallRecoverable(t *testing.T) {
 	e := testenv.Start(t)
 	root := e.Root(t)
 	_, line, _ := sshx.GenerateKey()
-	o := InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}
+	o := InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()}
 	if _, err := installWith(bg, root, o, nil, map[string]string{"WV_FAIL_AT": "service"}); err == nil {
 		t.Fatal("expected failure")
 	}
@@ -79,7 +79,7 @@ func TestInstallWaitsForAptLock(t *testing.T) {
 	root := testenv.Start(t).Root(t)
 	holdLock(t, root, "15")
 	_, line, _ := sshx.GenerateKey()
-	if _, err := Install(bg, root, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}, nil); err != nil {
+	if _, err := Install(bg, root, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()}, nil); err != nil {
 		t.Fatalf("install while apt busy: %v", err)
 	}
 }
@@ -133,7 +133,7 @@ func TestUninstallKeepsForeignXrayDir(t *testing.T) {
 		t.Fatal("uninstall without manifest deleted /etc/xray")
 	}
 	_, line, _ := sshx.GenerateKey()
-	if _, err := Install(bg, root, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}, nil); err != nil {
+	if _, err := Install(bg, root, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := Uninstall(bg, root, line, nil); err != nil {

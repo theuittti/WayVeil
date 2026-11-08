@@ -254,3 +254,17 @@ func TestNoOrphanXrayWhenMihomoFails(t *testing.T) {
 		t.Fatal("xray left running after a failed Connect")
 	}
 }
+
+// The xray socks port and mihomo's Clash API port must never collide (seen:
+// "bind: address already in use" when two sequential probes got one port).
+func TestFreeAddrsDistinct(t *testing.T) {
+	for i := 0; i < 500; i++ {
+		a, err := freeAddrs(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a[0] == a[1] {
+			t.Fatalf("same port twice: %v", a)
+		}
+	}
+}

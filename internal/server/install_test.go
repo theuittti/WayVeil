@@ -82,9 +82,38 @@ func TestInstallHappyPath(t *testing.T) {
 			env = c.Stdin
 		}
 	}
-	for _, kv := range []string{"export WV_SNI='www.nu.nl'", "export WV_DNS='1.1.1.1'", "export WV_XRAY_VERSION='" + XrayVersion + "'", "export WV_AUTH_USER='root'"} {
+	for _, kv := range []string{"export WV_SNI='www.nu.nl'", "export WV_DNS='1.1.1.1'", "export WV_XRAY_VERSION='" + XrayVersion + "'", "export WV_AUTH_USER='root'",
+		// the downloaded xray zip is verified against the official digests
+		"export WV_XRAY_SHA256_64='e4bd9119f50ae7c41658b1abd0679ae06f98bd864a2907ff33f2f2cf7081b214'",
+		"export WV_XRAY_SHA256_ARM64='1811c8f1da0c3b6dc707ebaf1c8390e987ba39859a8f0a7aadd8526157f2ec8d'"} {
 		if !strings.Contains(env, kv) {
 			t.Errorf("missing %s", kv)
 		}
+	}
+}
+
+// When the app has the xray zip, it uploads it so the server needn't reach
+// GitHub (outages, RU-hosted servers); the script still checks the digest.
+func TestInstallUploadsXrayZip(t *testing.T) {
+	f := installRunner(t, false, false)
+	o := opts
+	o.XrayZip = []byte("ZIPDATA")
+	if _, err := Install(context.Background(), f, o, nil); err != nil {
+		t.Fatal(err)
+	}
+	up, inst := -1, -1
+	for i, c := range f.calls {
+		if strings.Contains(c.Cmd, "/tmp/wayveil-xray.zip") && c.Stdin == "ZIPDATA" {
+			up = i
+		}
+		if scriptIs(c, "install") {
+			inst = i
+			if !strings.Contains(c.Stdin, "export WV_XRAY_ZIP='/tmp/wayveil-xray.zip'") {
+				t.Error("script not told about the uploaded zip")
+			}
+		}
+	}
+	if up < 0 || up > inst {
+		t.Fatalf("zip must be uploaded before the install script (upload %d, script %d)", up, inst)
 	}
 }

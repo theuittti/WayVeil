@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - Module path: `github.com/theuittti/WayVeil` (rename later with one `go mod edit` if the GitHub owner differs).
-- Supported server OS: Ubuntu 22.04 / 24.04, Debian 11 / 12. Anything else → error code `unsupported_os`.
+- Supported server OS: Ubuntu 22.04 / 24.04 / 26.04, Debian 12 / 13 (updated 2026-11-08; Debian 11 is EOL). Anything else → error code `unsupported_os`.
 - Inbound: VLESS, port 443, TCP only, `flow: "xtls-rprx-vision"`, `security: reality`. No XHTTP.
 - Client link: `vless://UUID@host:443?security=reality&sni=…&fp=chrome&pbk=…&sid=…&flow=xtls-rprx-vision&type=tcp#Name`.
 - The SSH password is never written to disk or logs. After first login the app authorises its own ed25519 key and uses only that.

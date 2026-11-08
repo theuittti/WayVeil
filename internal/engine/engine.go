@@ -158,13 +158,25 @@ func randHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-func freeAddr() (string, error) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
+// freeAddrs returns n distinct free 127.0.0.1 ports. All listeners are held
+// open together, so the kernel cannot hand out the same port twice.
+func freeAddrs(n int) ([]string, error) {
+	var lns []net.Listener
+	defer func() {
+		for _, l := range lns {
+			l.Close()
+		}
+	}()
+	var out []string
+	for i := 0; i < n; i++ {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		lns = append(lns, ln)
+		out = append(out, ln.Addr().String())
 	}
-	defer ln.Close()
-	return ln.Addr().String(), nil
+	return out, nil
 }
 
 func (e *Engine) serverIPs(ctx context.Context, host string) ([]netip.Addr, error) {
@@ -216,10 +228,11 @@ func (e *Engine) Connect(ctx context.Context, s clientstore.Settings) error {
 	}
 
 	// ---- xray: the last hop ----
-	socksAddr, err := freeAddr()
+	addrs, err := freeAddrs(2) // socks for xray, Clash API for mihomo
 	if err != nil {
 		return err
 	}
+	socksAddr, clashAddr := addrs[0], addrs[1]
 	_, portStr, _ := net.SplitHostPort(socksAddr)
 	socksPort, _ := strconv.Atoi(portStr)
 	user, pass := "wayveil", randHex(16)
@@ -237,10 +250,6 @@ func (e *Engine) Connect(ctx context.Context, s clientstore.Settings) error {
 	}
 
 	// ---- mihomo: TUN, rules, DNS ----
-	clashAddr, err := freeAddr()
-	if err != nil {
-		return err
-	}
 	secret := randHex(16)
 	cfg, err := mihomo.Build(mihomo.Input{
 		Server: s.Profile.Params, ServerIPs: ips, Mode: s.Mode,

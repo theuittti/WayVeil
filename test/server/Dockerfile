@@ -1,5 +1,7 @@
-# Integration-test "VPS": Ubuntu 24.04 with systemd and sshd.
-FROM ubuntu:24.04
+# Integration-test "VPS" with systemd and sshd. BASE: ubuntu:24.04 (default),
+# ubuntu:22.04, ubuntu:26.04, debian:12, debian:13 ...
+ARG BASE=ubuntu:24.04
+FROM ${BASE}
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         systemd systemd-sysv openssh-server sudo python3 curl ca-certificates iproute2 logrotate \

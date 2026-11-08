@@ -7,7 +7,7 @@ jbool() { if [ "$1" = 1 ]; then printf true; else printf false; fi; }
 os_id=""; os_ver=""
 if [ -r /etc/os-release ]; then . /etc/os-release; os_id=${ID:-}; os_ver=${VERSION_ID:-}; fi
 supported=0
-case "$os_id:$os_ver" in ubuntu:22.04|ubuntu:24.04|debian:11|debian:12) supported=1 ;; esac
+case "$os_id:$os_ver" in ubuntu:22.04|ubuntu:24.04|ubuntu:26.04|debian:12|debian:13) supported=1 ;; esac
 
 case "$(uname -m)" in x86_64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) arch=$(uname -m) ;; esac
 
