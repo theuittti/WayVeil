@@ -72,10 +72,14 @@ WV_TEST_USER=root
 WV_TEST_PASS=…
 ```
 
-`make e2e` reinstalls Wayveil on that server, connects a TUN client container
-and checks that proxied sites see the VPS IP and direct ones see yours. The
-password is used once to authorize a test key (`~/.config/wayveil-test/id_ed25519`);
-remove `WV_TEST_PASS` afterwards.
+`make e2e` wipes every trace of earlier Wayveil attempts from that server
+(including the packages the installer adds, `jq` and `unzip`, and the apt
+lists, so the install pays what a fresh VPS pays; set `WV_TEST_KEEP_DEPS=1`
+to keep them), installs Wayveil, connects a TUN client container and checks
+that proxied sites see the VPS IP and direct ones see yours. It ends with a
+per-phase timing table. **Use a disposable server only.** The password is used
+once to authorize a test key (`~/.config/wayveil-test/id_ed25519`); remove
+`WV_TEST_PASS` afterwards.
 
 ### Removing Wayveil from a server without the app
 
