@@ -5,6 +5,7 @@ package server
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -120,8 +121,12 @@ func TestInstallIPv4OnlyStrategy(t *testing.T) {
 	}
 }
 
-// The server downloads xray itself (no uploaded zip): needs GitHub.
+// The server downloads xray itself (no uploaded zip): depends on GitHub's
+// availability and speed, so it only runs with WAYVEIL_IT_NET=1.
 func TestInstallDownloadsXray(t *testing.T) {
+	if os.Getenv("WAYVEIL_IT_NET") != "1" {
+		t.Skip("needs fast access to GitHub releases: set WAYVEIL_IT_NET=1")
+	}
 	c := testenv.Start(t).Root(t)
 	_, line, _ := sshx.GenerateKey()
 	if _, err := Install(context.Background(), c, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}, nil); err != nil {

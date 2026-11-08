@@ -96,7 +96,9 @@ T=$(mktemp -d)
 if [ -n "${WV_XRAY_ZIP:-}" ] && [ -s "$WV_XRAY_ZIP" ]; then
   mv "$WV_XRAY_ZIP" "$T/x.zip"            # uploaded by the app (no GitHub needed)
 else
-  curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 10 --max-time 300 \
+  # abort stalled transfers (<10 KB/s for 30 s) instead of hanging for minutes
+  curl -fsSL --retry 3 --retry-all-errors --retry-delay 3 --connect-timeout 10 --max-time 180 \
+    --speed-limit 10240 --speed-time 30 \
     "https://github.com/XTLS/Xray-core/releases/download/${WV_XRAY_VERSION}/Xray-linux-${A}.zip" -o "$T/x.zip"
 fi
 echo "$SUM  $T/x.zip" | sha256sum -c --quiet - || { echo "xray download does not match the official SHA-256" >&2; false; }

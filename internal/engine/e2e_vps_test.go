@@ -60,9 +60,13 @@ func TestE2EVPS(t *testing.T) {
 		}
 	})
 	t.Logf("target: %s", sni)
+	zip := testenv.XrayZip()
+	if len(zip) == 0 {
+		t.Fatal("build/Xray-linux-64.zip missing: run make build (the VPS must not depend on GitHub)")
+	}
 	_, appKey, _ := sshx.GenerateKey() // throwaway "app" key; our test key stays outside the manifest
 	var steps []string
-	_, err = server.Install(bg, root, server.InstallOptions{Address: vpsIP, SNI: sni, AuthUser: user, AuthKeyLine: appKey, XrayZip: testenv.XrayZip()},
+	_, err = server.Install(bg, root, server.InstallOptions{Address: vpsIP, SNI: sni, AuthUser: user, AuthKeyLine: appKey, XrayZip: zip},
 		func(st server.StepEvent) {
 			steps = append(steps, st.ID+":"+string(st.Status)+" "+st.Message)
 			t.Logf("  install step %-12s %s %s (%s)", st.ID, st.Status, st.Message, time.Now().Format("15:04:05"))

@@ -42,14 +42,19 @@ build: mihomo xray
 
 XRAY_VERSION := v26.10.31
 XRAY_SHA256  := e4bd9119f50ae7c41658b1abd0679ae06f98bd864a2907ff33f2f2cf7081b214
-# Pinned xray client binary (same release as the server, internal/server.XrayVersion).
+# Pinned xray: the verified zip (also uploaded to servers by tests/e2e) and
+# the client binary extracted from it. Same release as internal/server.XrayVersion.
 xray: build/xray
-build/xray:
-	mkdir -p build/xray.d
-	$(CURL) https://github.com/XTLS/Xray-core/releases/download/$(XRAY_VERSION)/Xray-linux-64.zip -o build/xray.d/x.zip || \
-	  $(GHDL) $(XRAY_VERSION) -R XTLS/Xray-core -p Xray-linux-64.zip -O build/xray.d/x.zip
-	echo "$(XRAY_SHA256)  build/xray.d/x.zip" | sha256sum -c --quiet - || { rm -rf build/xray.d; echo "xray download does not match the official SHA-256"; exit 1; }
-	cd build/xray.d && unzip -qo x.zip xray && mv xray ../xray && mv x.zip ../Xray-linux-64.zip && cd .. && rm -rf xray.d
+build/Xray-linux-64.zip:
+	mkdir -p build
+	$(CURL) https://github.com/XTLS/Xray-core/releases/download/$(XRAY_VERSION)/Xray-linux-64.zip -o $@.tmp || \
+	  $(GHDL) $(XRAY_VERSION) -R XTLS/Xray-core -p Xray-linux-64.zip -O $@.tmp
+	echo "$(XRAY_SHA256)  $@.tmp" | sha256sum -c --quiet - || { rm -f $@.tmp; echo "xray download does not match the official SHA-256"; exit 1; }
+	mv $@.tmp $@
+build/xray: build/Xray-linux-64.zip
+	rm -rf build/xray.d && mkdir -p build/xray.d
+	unzip -qo build/Xray-linux-64.zip xray -d build/xray.d && mv build/xray.d/xray build/xray && rm -rf build/xray.d
+	touch build/xray
 	./build/xray version | head -1
 
 # End-to-end on the disposable test VPS from ~/.config/wayveil-test/vps.env.
