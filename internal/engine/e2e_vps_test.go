@@ -61,7 +61,7 @@ func TestE2EVPS(t *testing.T) {
 	})
 	t.Logf("target: %s", sni)
 	_, appKey, _ := sshx.GenerateKey() // throwaway "app" key; our test key stays outside the manifest
-	if _, err := server.Install(bg, root, server.InstallOptions{Address: vpsIP, SNI: sni, AuthUser: user, AuthKeyLine: appKey}, nil); err != nil {
+	if _, err := server.Install(bg, root, server.InstallOptions{Address: vpsIP, SNI: sni, AuthUser: user, AuthKeyLine: appKey, XrayZip: testenv.XrayZip()}, nil); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 	cl, err := server.AddClient(bg, root, "e2e")
