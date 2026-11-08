@@ -54,4 +54,3 @@ func route(t *testing.T, c *testenv.Client, url, host, ip string) string {
 	t.Fatalf("no connection seen for %s", url)
 	return ""
 }
-

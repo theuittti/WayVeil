@@ -2,6 +2,7 @@
 # Non-interactive VLESS + REALITY + Vision install. Derived from
 # ndatg/xray-vless-reality-installer (MIT), see THIRD_PARTY_LICENSES.
 # Inputs: WV_ADDRESS WV_SNI WV_DNS WV_AUTH_USER WV_AUTH_KEY WV_XRAY_VERSION
+#         WV_XRAY_SHA256_64 WV_XRAY_SHA256_ARM64 (official digests of the zip)
 #         WV_UNINSTALLER (base64 of uninstall.sh)
 # Test hooks: WV_FAIL_AT=<step>, WV_APT_LOCK_TIMEOUT=<seconds>
 # Every created item is recorded in the manifest *before* it is created.
@@ -86,13 +87,14 @@ ok
 # ---- xray ----
 step xray
 case "$(uname -m)" in
-  x86_64) A=64 ;;
-  aarch64|arm64) A=arm64-v8a ;;
+  x86_64) A=64; SUM=$WV_XRAY_SHA256_64 ;;
+  aarch64|arm64) A=arm64-v8a; SUM=$WV_XRAY_SHA256_ARM64 ;;
   *) echo "unsupported arch $(uname -m)" >&2; false ;;
 esac
 T=$(mktemp -d)
-curl -fsSL --connect-timeout 10 --max-time 300 \
+curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 10 --max-time 300 \
   "https://github.com/XTLS/Xray-core/releases/download/${WV_XRAY_VERSION}/Xray-linux-${A}.zip" -o "$T/x.zip"
+echo "$SUM  $T/x.zip" | sha256sum -c --quiet - || { echo "xray download does not match the official SHA-256" >&2; false; }
 unzip -qo "$T/x.zip" xray -d "$T"
 mf file /usr/local/bin/xray
 install -m 0755 "$T/xray" /usr/local/bin/xray
