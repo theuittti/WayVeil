@@ -91,3 +91,29 @@ func TestInstallHappyPath(t *testing.T) {
 		}
 	}
 }
+
+// When the app has the xray zip, it uploads it so the server needn't reach
+// GitHub (outages, RU-hosted servers); the script still checks the digest.
+func TestInstallUploadsXrayZip(t *testing.T) {
+	f := installRunner(t, false, false)
+	o := opts
+	o.XrayZip = []byte("ZIPDATA")
+	if _, err := Install(context.Background(), f, o, nil); err != nil {
+		t.Fatal(err)
+	}
+	up, inst := -1, -1
+	for i, c := range f.calls {
+		if strings.Contains(c.Cmd, "/tmp/wayveil-xray.zip") && c.Stdin == "ZIPDATA" {
+			up = i
+		}
+		if scriptIs(c, "install") {
+			inst = i
+			if !strings.Contains(c.Stdin, "export WV_XRAY_ZIP='/tmp/wayveil-xray.zip'") {
+				t.Error("script not told about the uploaded zip")
+			}
+		}
+	}
+	if up < 0 || up > inst {
+		t.Fatalf("zip must be uploaded before the install script (upload %d, script %d)", up, inst)
+	}
+}

@@ -49,7 +49,7 @@ build/xray:
 	$(CURL) https://github.com/XTLS/Xray-core/releases/download/$(XRAY_VERSION)/Xray-linux-64.zip -o build/xray.d/x.zip || \
 	  $(GHDL) $(XRAY_VERSION) -R XTLS/Xray-core -p Xray-linux-64.zip -O build/xray.d/x.zip
 	echo "$(XRAY_SHA256)  build/xray.d/x.zip" | sha256sum -c --quiet - || { rm -rf build/xray.d; echo "xray download does not match the official SHA-256"; exit 1; }
-	cd build/xray.d && unzip -qo x.zip xray && mv xray ../xray && cd .. && rm -rf xray.d
+	cd build/xray.d && unzip -qo x.zip xray && mv xray ../xray && mv x.zip ../Xray-linux-64.zip && cd .. && rm -rf xray.d
 	./build/xray version | head -1
 
 # End-to-end on the disposable test VPS from ~/.config/wayveil-test/vps.env.

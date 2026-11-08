@@ -25,7 +25,12 @@ type InstallOptions struct {
 	AuthUser    string // SSH user whose authorized_keys gets AuthKeyLine
 	AuthKeyLine string // the app's own public key line
 	DNS         string // default "1.1.1.1"
+	// XrayZip, if set, is the official Xray-linux-<arch>.zip of XrayVersion,
+	// uploaded so the server needn't reach GitHub; its digest is still checked.
+	XrayZip []byte
 }
+
+const uploadedZip = "/tmp/wayveil-xray.zip"
 
 type InstallResult struct {
 	PublicKey   string      `json:"publicKey"`
@@ -78,6 +83,12 @@ func installWith(ctx context.Context, r remote.Runner, o InstallOptions, onStep 
 		"WV_AUTH_KEY": o.AuthKeyLine, "WV_XRAY_VERSION": XrayVersion,
 		"WV_XRAY_SHA256_64": xraySHA256amd64, "WV_XRAY_SHA256_ARM64": xraySHA256arm64,
 		"WV_UNINSTALLER": base64.StdEncoding.EncodeToString(script("uninstall")),
+	}
+	if len(o.XrayZip) > 0 {
+		if _, err := r.Run(ctx, "install -m 0600 /dev/stdin "+uploadedZip, o.XrayZip); err != nil {
+			return res, err
+		}
+		env["WV_XRAY_ZIP"] = uploadedZip
 	}
 	for k, v := range extra {
 		env[k] = v

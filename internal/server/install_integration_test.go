@@ -20,7 +20,7 @@ func installed(t *testing.T, e *testenv.Env, user, pass string) (*sshx.Client, s
 	_, line, _ := sshx.GenerateKey()
 	var steps []StepEvent
 	res, err := Install(context.Background(), c, InstallOptions{
-		Address: "203.0.113.10", SNI: "www.microsoft.com", AuthUser: user, AuthKeyLine: line,
+		Address: "203.0.113.10", SNI: "www.microsoft.com", AuthUser: user, AuthKeyLine: line, XrayZip: testenv.XrayZip(),
 	}, func(s StepEvent) { steps = append(steps, s) })
 	if err != nil {
 		var se *ScriptError
@@ -72,7 +72,7 @@ func TestInstallBBRWarnOK(t *testing.T) {
 	c := e.Root(t)
 	_, line, _ := sshx.GenerateKey()
 	var bbr StepStatus
-	_, err := Install(context.Background(), c, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line},
+	_, err := Install(context.Background(), c, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()},
 		func(s StepEvent) {
 			if s.ID == "bbr" && s.Status != StepStart {
 				bbr = s.Status
@@ -86,7 +86,7 @@ func TestInstallBBRWarnOK(t *testing.T) {
 func TestInstallTwice(t *testing.T) {
 	e := testenv.Start(t)
 	root, line, res := installed(t, e, "root", "wayveil")
-	_, err := Install(context.Background(), root, InstallOptions{Address: "x", SNI: "www.apple.com", AuthUser: "root", AuthKeyLine: line}, nil)
+	_, err := Install(context.Background(), root, InstallOptions{Address: "x", SNI: "www.apple.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()}, nil)
 	if !errors.Is(err, ErrAlreadyInstalled) {
 		t.Fatalf("want already_installed, got %v", err)
 	}
@@ -100,7 +100,7 @@ func TestInstallPortBusy(t *testing.T) {
 	c := e.Root(t)
 	testenv.Sh(t, c, "nohup python3 -m http.server 443 >/dev/null 2>&1 & sleep 1")
 	_, line, _ := sshx.GenerateKey()
-	_, err := Install(context.Background(), c, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}, nil)
+	_, err := Install(context.Background(), c, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line, XrayZip: testenv.XrayZip()}, nil)
 	if !errors.Is(err, ErrPortBusy) {
 		t.Fatalf("want port_busy, got %v", err)
 	}
@@ -117,5 +117,18 @@ func TestInstallIPv4OnlyStrategy(t *testing.T) {
 	}
 	if s := testenv.Sh(t, root, "jq -r .dns.queryStrategy /etc/xray/config.json"); s != "UseIPv4" {
 		t.Fatalf("queryStrategy %q", s)
+	}
+}
+
+// The server downloads xray itself (no uploaded zip): needs GitHub.
+func TestInstallDownloadsXray(t *testing.T) {
+	c := testenv.Start(t).Root(t)
+	_, line, _ := sshx.GenerateKey()
+	if _, err := Install(context.Background(), c, InstallOptions{Address: "x", SNI: "www.microsoft.com", AuthUser: "root", AuthKeyLine: line}, nil); err != nil {
+		var se *ScriptError
+		if errors.As(err, &se) {
+			t.Fatalf("%s: %s", se.Code, se.Message)
+		}
+		t.Fatal(err)
 	}
 }

@@ -1,6 +1,7 @@
 package testenv
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -79,4 +80,11 @@ func Attach(t *testing.T, network, container string) string {
 	docker(t, "network", "connect", network, container)
 	t.Cleanup(func() { exec.Command("docker", "network", "disconnect", "-f", network, container).Run() })
 	return docker(t, "inspect", "-f", "{{(index .NetworkSettings.Networks \""+network+"\").GlobalIPv6Address}}", container)
+}
+
+// XrayZip returns build/Xray-linux-64.zip (kept by `make xray`) so installs
+// in tests don't depend on GitHub; nil when missing (the server downloads it).
+func XrayZip() []byte {
+	b, _ := os.ReadFile(filepath.Join(repoRoot(), "build", "Xray-linux-64.zip"))
+	return b
 }

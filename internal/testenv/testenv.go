@@ -17,7 +17,7 @@ import (
 	"github.com/theuittti/WayVeil/internal/sshx"
 )
 
-const image = "wayveil-it"
+const imageName = "wayveil-it"
 
 type Env struct {
 	Host      string
@@ -39,13 +39,21 @@ func docker(t *testing.T, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// Start builds (cached) and runs a fresh container; it is removed on cleanup.
-func Start(t *testing.T) *Env {
+// Start builds (cached) and runs a fresh Ubuntu 24.04 container; it is
+// removed on cleanup.
+func Start(t *testing.T) *Env { t.Helper(); return StartOS(t, "ubuntu:24.04") }
+
+// StartOS is Start with another base image, e.g. "ubuntu:26.04", "debian:13".
+func StartOS(t *testing.T, base string) *Env {
 	t.Helper()
 	if os.Getenv("WAYVEIL_IT") != "1" {
 		t.Skip("integration test: set WAYVEIL_IT=1")
 	}
-	docker(t, "build", "-q", "-t", image, filepath.Join(repoRoot(), "test", "server"))
+	image := imageName
+	if base != "ubuntu:24.04" {
+		image += "-" + strings.NewReplacer(":", "-", "/", "-").Replace(base)
+	}
+	docker(t, "build", "-q", "--build-arg", "BASE="+base, "-t", image, filepath.Join(repoRoot(), "test", "server"))
 	// Not --privileged: /proc/sys stays read-only, so server scripts cannot
 	// change the developer machine's global sysctls (BBR step then warns,
 	// which is exactly the OpenVZ/LXC case we must handle).
