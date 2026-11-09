@@ -16,8 +16,8 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 
+	"github.com/theuittti/WayVeil/internal/client"
 	"github.com/theuittti/WayVeil/internal/clientstore"
 	"github.com/theuittti/WayVeil/internal/engine"
 	"github.com/theuittti/WayVeil/internal/lists"
@@ -38,8 +38,6 @@ type deps struct {
 	update func(context.Context, lists.Options) (lists.UpdateResult, error)
 	mihomo func() (string, error)
 }
-
-const listsMaxAge = 24 * time.Hour
 
 func main() {
 	eng, err := engine.New(engine.Options{Inbound: mihomo.TUN, LogLevel: os.Getenv("WAYVEIL_LOG_LEVEL")})
@@ -152,7 +150,7 @@ func dispatch(ctx context.Context, args []string, d deps) error {
 		if sub, _ := arg(1); sub != "update" {
 			return errors.New("usage: wayveil lists update")
 		}
-		return updateLists(ctx, &s, d, true)
+		return updateLists(ctx, &s, d)
 	case "setup":
 		bin, err := d.mihomo()
 		if err != nil {
@@ -163,28 +161,21 @@ func dispatch(ctx context.Context, args []string, d deps) error {
 	return fmt.Errorf("unknown command %q", args[0])
 }
 
+func (d deps) client() client.Deps {
+	return client.Deps{
+		Engine: d.engine, Grant: d.grant, Update: d.update, Mihomo: d.mihomo,
+		Warn: func(m string) { fmt.Fprintln(d.out, "warning:", m) },
+		BeforeGrant: func() {
+			fmt.Fprintln(d.out, "Wayveil needs a one-time permission to create its network interface (TUN).")
+		},
+	}
+}
+
 func connect(ctx context.Context, s *clientstore.Settings, d deps) error {
-	if s.Profile == nil {
-		return errors.New("no connection yet: run wayveil import <link from your friend>")
-	}
-	if time.Since(s.ListsUpdated) > listsMaxAge {
-		if err := updateLists(ctx, s, d, false); err != nil {
-			fmt.Fprintln(d.out, "warning: could not refresh block lists, using saved ones:", err)
+	if err := client.Connect(ctx, s, d.client()); err != nil {
+		if errors.Is(err, client.ErrNoProfile) {
+			return errors.New("no connection yet: run wayveil import <link from your friend>")
 		}
-	}
-	err := d.engine.Connect(ctx, *s)
-	if errors.Is(err, engine.ErrNeedsElevation) {
-		fmt.Fprintln(d.out, "Wayveil needs a one-time permission to create its network interface (TUN).")
-		bin, ferr := d.mihomo()
-		if ferr != nil {
-			return ferr
-		}
-		if gerr := d.grant(ctx, bin); gerr != nil {
-			return fmt.Errorf("permission for the TUN device was not granted: %w", gerr)
-		}
-		err = d.engine.Connect(ctx, *s)
-	}
-	if err != nil {
 		return err
 	}
 	fmt.Fprintf(d.out, "Connected to %s (%s mode)\n", s.Profile.Name, s.Mode)
@@ -193,39 +184,30 @@ func connect(ctx context.Context, s *clientstore.Settings, d deps) error {
 
 // saveAndApply saves settings and reconnects if a connection is running.
 func saveAndApply(ctx context.Context, s *clientstore.Settings, d deps) error {
-	if err := clientstore.Save(*s); err != nil {
+	re, err := client.SaveAndApply(ctx, s, d.client())
+	if err != nil {
+		if errors.Is(err, client.ErrNoProfile) {
+			return errors.New("no connection yet: run wayveil import <link from your friend>")
+		}
 		return err
 	}
-	if st := d.engine.Status(ctx).State; st == engine.Connected || st == engine.Connecting {
-		if err := d.engine.Disconnect(ctx); err != nil {
-			return err
-		}
-		return connect(ctx, s, d)
+	if re {
+		fmt.Fprintf(d.out, "Connected to %s (%s mode)\n", s.Profile.Name, s.Mode)
+	} else {
+		fmt.Fprintln(d.out, "Saved.")
 	}
-	fmt.Fprintln(d.out, "Saved.")
 	return nil
 }
 
-func updateLists(ctx context.Context, s *clientstore.Settings, d deps, verbose bool) error {
-	dir, err := lists.DefaultDir()
-	if err != nil {
-		return err
-	}
-	res, err := d.update(ctx, lists.Options{Dir: dir})
-	if err != nil {
-		return err
-	}
-	if verbose {
+func updateLists(ctx context.Context, s *clientstore.Settings, d deps) error {
+	res, err := client.UpdateLists(ctx, s, d.client())
+	if len(res.Updated) > 0 || len(res.Errors) > 0 {
 		fmt.Fprintf(d.out, "updated: %s\n", strings.Join(res.Updated, ", "))
 		for tag, e := range res.Errors {
 			fmt.Fprintf(d.out, "kept %s: %s\n", tag, e)
 		}
 	}
-	if len(res.Updated) == 0 {
-		return errors.New("no list could be downloaded")
-	}
-	s.ListsUpdated = time.Now()
-	return clientstore.Save(*s)
+	return err
 }
 
 func human(n int64) string {
