@@ -1,9 +1,13 @@
 package gui
 
 import (
+	"context"
 	"errors"
+	"io"
 	"net"
 	"syscall"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/theuittti/WayVeil/internal/client"
 	"github.com/theuittti/WayVeil/internal/clientstore"
@@ -19,7 +23,27 @@ var (
 	// ErrBadHost: the server address field could not be understood.
 	ErrBadHost      = errors.New("bad host")
 	errNotConnected = errors.New("not connected")
+
+	// Codes printed by ctl.sh (Adopt, AddClient, Info).
+	errNotInstalled = &server.ScriptError{Code: "not_installed"}
+	errNoSuchUser   = &server.ScriptError{Code: "no_such_user"}
+	errServerBusy   = &server.ScriptError{Code: "busy"}
+	errCtlFailed    = &server.ScriptError{Code: "ctl_failed"}
 )
+
+// ctlError marks a failure of a ctl.sh call, so its ScriptError is not
+// reported as an installation step.
+type ctlError struct{ err error }
+
+func (e *ctlError) Error() string { return e.err.Error() }
+func (e *ctlError) Unwrap() error { return e.err }
+
+func ctlErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ctlError{err}
+}
 
 // StepError is an install failure annotated with the step that was running.
 type StepError struct {
@@ -81,6 +105,12 @@ func Human(err error) string {
 		return "The server's identity changed since last time. This may be an attack — not continuing."
 	case errors.Is(err, remote.ErrSudoPassword):
 		return "This user needs a password for sudo. Use root or a user with passwordless sudo."
+	case connectionLost(err):
+		var st *StepError
+		if errors.As(err, &st) && st.Step != "" {
+			return "The connection to the server was lost during “" + st.Step + "”. Connect again — Wayveil will offer to clean up and install again."
+		}
+		return "The connection to the server was lost. Connect again."
 	case unreachable(err):
 		return "Cannot reach the server. Check the IP and port, and that the hosting firewall allows SSH."
 	case errors.Is(err, server.ErrUnsupportedOS):
@@ -93,6 +123,18 @@ func Human(err error) string {
 		return "A previous installation did not finish."
 	case errors.Is(err, server.ErrAlreadyInstalled):
 		return "Wayveil is already installed on this server."
+	case errors.Is(err, errNotInstalled):
+		return "Wayveil is not installed on this server."
+	case errors.Is(err, errNoSuchUser):
+		return "This user does not exist on the server."
+	case errors.Is(err, errServerBusy):
+		return "The server is busy with another Wayveil operation. Try again in a minute."
+	case errors.As(err, &se) && (errors.As(err, new(*ctlError)) || errors.Is(err, errCtlFailed)):
+		msg := se.Message
+		if msg == "" {
+			msg = se.Code
+		}
+		return "The server could not finish the operation: " + msg
 	case errors.As(err, &se):
 		step := se.Code
 		var st *StepError
@@ -126,6 +168,26 @@ func unreachable(err error) bool {
 		return true
 	}
 	for _, e := range []error{syscall.ECONNREFUSED, syscall.EHOSTUNREACH, syscall.ENETUNREACH, syscall.ETIMEDOUT} {
+		if errors.Is(err, e) {
+			return true
+		}
+	}
+	return false
+}
+
+// connectionLost: the SSH session broke after login (EOF, a closed channel or
+// connection, a read/write error, or the session's context cancelled).
+func connectionLost(err error) bool {
+	var op *net.OpError
+	if errors.As(err, &op) {
+		return op.Op != "dial"
+	}
+	var missing *ssh.ExitMissingError
+	if errors.As(err, &missing) {
+		return true
+	}
+	for _, e := range []error{io.EOF, io.ErrUnexpectedEOF, net.ErrClosed, context.Canceled,
+		syscall.ECONNRESET, syscall.ECONNABORTED, syscall.EPIPE} {
 		if errors.Is(err, e) {
 			return true
 		}

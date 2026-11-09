@@ -180,8 +180,9 @@ func (a *App) ServerConnect(f AccessForm) (HostCheck, error) {
 	a.mu.Unlock()
 	closeSession(old, scanDone)
 
+	// The password is only handed to sshx.Connect (via t) and never stored:
+	// not in the session, the owner profile, events or error strings.
 	t := sshx.Target{Host: host, Port: port, User: user, Password: f.Password}
-	f.Password = ""
 	if f.PrivateKey != "" {
 		t.PrivateKeyPEM = []byte(f.PrivateKey)
 	}
@@ -275,15 +276,24 @@ func (a *App) Install(sni string) (Done, error) {
 // authorized and a "Me" device created, nothing is reinstalled.
 func (a *App) Adopt() (Done, error) {
 	return a.run(func(ctx context.Context, s *session) (Done, error) {
-		if !s.info.HasWayveil {
-			return Done{}, errors.New("Wayveil is not installed on this server")
+		// Fresh precheck: only a complete Wayveil install is taken over.
+		info, err := a.refreshInfo(ctx, s)
+		if err != nil {
+			return Done{}, err
+		}
+		switch stateOf(info) {
+		case "wayveil":
+		case "partial":
+			return Done{}, server.ErrPartialInstall
+		default:
+			return Done{}, errNotInstalled
 		}
 		line, err := a.newKey(s)
 		if err != nil {
 			return Done{}, err
 		}
 		if err := a.d.Adopt(ctx, s.conn, s.user, line); err != nil {
-			return Done{}, err
+			return Done{}, ctlErr(err)
 		}
 		return a.finish(ctx, s)
 	})
@@ -298,13 +308,10 @@ func (a *App) Reinstall(sni string) (Done, error) {
 	}
 	return a.run(func(ctx context.Context, s *session) (Done, error) {
 		// Fresh precheck: the session's may be from before a failed install.
-		info, err := a.d.Precheck(ctx, s.conn)
+		info, err := a.refreshInfo(ctx, s)
 		if err != nil {
 			return Done{}, err
 		}
-		a.mu.Lock() // CheckDomain reads s.info concurrently
-		s.info = info
-		a.mu.Unlock()
 		switch stateOf(info) {
 		case "unsupported":
 			return Done{}, &server.ScriptError{Code: server.ErrUnsupportedOS.Code, Message: strings.TrimSpace(info.OSID + " " + info.OSVersion)}
@@ -321,6 +328,18 @@ func (a *App) Reinstall(sni string) (Done, error) {
 		}
 		return a.install(ctx, s, sni)
 	})
+}
+
+// refreshInfo prechecks the server again and stores the result in s.
+func (a *App) refreshInfo(ctx context.Context, s *session) (server.HostInfo, error) {
+	info, err := a.d.Precheck(ctx, s.conn)
+	if err != nil {
+		return server.HostInfo{}, err
+	}
+	a.mu.Lock() // CheckDomain reads s.info concurrently
+	s.info = info
+	a.mu.Unlock()
+	return info, nil
 }
 
 func (a *App) install(ctx context.Context, s *session, sni string) (Done, error) {
@@ -358,11 +377,11 @@ func (a *App) newKey(s *session) (string, error) {
 func (a *App) finish(ctx context.Context, s *session) (Done, error) {
 	cl, err := a.d.AddClient(ctx, s.conn, ownDevice)
 	if err != nil {
-		return Done{}, err
+		return Done{}, ctlErr(err)
 	}
 	info, err := a.d.Info(ctx, s.conn)
 	if err != nil {
-		return Done{}, err
+		return Done{}, ctlErr(err)
 	}
 	link := server.ClientLink(info, cl)
 	p, err := profile.FromLink(link)

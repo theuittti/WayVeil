@@ -1,11 +1,15 @@
 package gui
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"syscall"
 	"testing"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/theuittti/WayVeil/internal/remote"
 	"github.com/theuittti/WayVeil/internal/server"
@@ -17,6 +21,12 @@ type timeoutErr struct{}
 func (timeoutErr) Error() string   { return "i/o timeout" }
 func (timeoutErr) Timeout() bool   { return true }
 func (timeoutErr) Temporary() bool { return true }
+
+const lost = "The connection to the server was lost. Connect again."
+
+func lostDuring(step string) string {
+	return "The connection to the server was lost during “" + step + "”. Connect again — Wayveil will offer to clean up and install again."
+}
 
 func TestHuman(t *testing.T) {
 	cases := []struct {
@@ -40,6 +50,30 @@ func TestHuman(t *testing.T) {
 		{"script-nostep", &server.ScriptError{Code: "bad_args", Message: "missing user"}, "Installation failed at step bad_args: missing user"},
 		{"other", errors.New("boom"), "Something went wrong: boom"},
 		{"wrapped-ui", uiError(sshx.ErrAuth), "Could not log in: check the password or key."},
+
+		// Connection lost after login, with and without the running step.
+		{"lost-step-eof", &StepError{Step: "Packages", Err: io.ErrUnexpectedEOF}, lostDuring("Packages")},
+		{"lost-step-exitmissing", &StepError{Step: "Xray", Err: &ssh.ExitMissingError{}}, lostDuring("Xray")},
+		{"lost-step-ui", uiError(&StepError{Step: "Service", Err: fmt.Errorf("stream: %w", io.EOF)}), lostDuring("Service")},
+		{"lost-step-reset", &StepError{Step: "Packages", Err: &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}}, lostDuring("Packages")},
+		{"lost-eof", io.EOF, lost},
+		{"lost-wrapped-eof", fmt.Errorf("precheck: %w", io.ErrUnexpectedEOF), lost},
+		{"lost-exitmissing", &ssh.ExitMissingError{}, lost},
+		{"lost-closed", &net.OpError{Op: "write", Net: "tcp", Err: net.ErrClosed}, lost},
+		{"lost-read-timeout", &net.OpError{Op: "read", Net: "tcp", Err: timeoutErr{}}, lost},
+		{"lost-pipe", fmt.Errorf("x: %w", syscall.EPIPE), lost},
+		{"lost-cancel", context.Canceled, lost},
+		{"lost-ui", uiError(io.EOF), lost},
+
+		// ctl.sh failures (Adopt, AddClient, Info).
+		{"ctl-not-installed", &server.ScriptError{Code: "not_installed"}, "Wayveil is not installed on this server."},
+		{"ctl-no-user", &server.ScriptError{Code: "no_such_user", Message: "bob"}, "This user does not exist on the server."},
+		{"ctl-busy", &server.ScriptError{Code: "busy"}, "The server is busy with another Wayveil operation. Try again in a minute."},
+		{"ctl-failed", &server.ScriptError{Code: "ctl_failed", Message: "line 42"}, "The server could not finish the operation: line 42"},
+		{"ctl-other", ctlErr(&server.ScriptError{Code: "invalid_config", Message: "bad json"}), "The server could not finish the operation: bad json"},
+		{"ctl-other-nomsg", ctlErr(&server.ScriptError{Code: "bad_key"}), "The server could not finish the operation: bad_key"},
+		{"ctl-lost", ctlErr(io.EOF), lost},
+		{"ctl-plain", ctlErr(errors.New("ctl add: no result")), "Something went wrong: ctl add: no result"},
 	}
 	for _, c := range cases {
 		if got := Human(c.err); got != c.want {

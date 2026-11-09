@@ -496,7 +496,7 @@ func TestInstallStreamDrop(t *testing.T) {
 	a := h.start(t)
 	h.connect(t)
 	_, err := a.Install("www.microsoft.com")
-	if err == nil || Human(err) == "" || !errors.Is(err, io.ErrUnexpectedEOF) {
+	if err == nil || !errors.Is(err, io.ErrUnexpectedEOF) || err.Error() != lostDuring("Packages") {
 		t.Fatalf("err = %v", err)
 	}
 	var titles []string
@@ -714,8 +714,83 @@ func TestAdoptNeedsWayveil(t *testing.T) {
 	h := newHarness(t, freshInfo())
 	a := h.start(t)
 	h.connect(t)
-	if _, err := a.Adopt(); err == nil {
-		t.Fatal("Adopt on a fresh server must fail")
+	if _, err := a.Adopt(); err == nil || err.Error() != "Wayveil is not installed on this server." {
+		t.Fatalf("Adopt on a fresh server: err = %v", err)
+	}
+}
+
+// Adopt re-runs the precheck: a server that became a partial install since
+// the connect (e.g. a failed reinstall) is not taken over.
+func TestAdoptRefusesPartial(t *testing.T) {
+	info := freshInfo()
+	info.HasWayveil = true
+	h := newHarness(t, info)
+	var n atomic.Int32
+	h.d.Precheck = func(context.Context, remote.Runner) (server.HostInfo, error) {
+		h.rec("precheck")
+		i := info
+		if n.Add(1) > 1 {
+			i.PartialInstall = true
+		}
+		return i, nil
+	}
+	a := h.start(t)
+	if hc := h.connect(t); hc.State != "wayveil" {
+		t.Fatalf("state = %s", hc.State)
+	}
+	_, err := a.Adopt()
+	if !errors.Is(err, server.ErrPartialInstall) || err.Error() != "A previous installation did not finish." {
+		t.Fatalf("err = %v", err)
+	}
+	if n.Load() != 2 {
+		t.Fatalf("precheck calls = %d", n.Load())
+	}
+	for _, c := range h.callList() {
+		if c == "genkey" || strings.HasPrefix(c, "adopt") || strings.HasPrefix(c, "addclient") {
+			t.Fatalf("partial server was touched: %v", h.callList())
+		}
+	}
+}
+
+func TestAdoptCtlErrors(t *testing.T) {
+	info := freshInfo()
+	info.HasWayveil = true
+	cases := []struct {
+		name  string
+		setup func(d *Deps)
+		want  string
+	}{
+		{"no-user", func(d *Deps) {
+			d.Adopt = func(context.Context, remote.Runner, string, string) error {
+				return &server.ScriptError{Code: "no_such_user", Message: "admin"}
+			}
+		}, "This user does not exist on the server."},
+		{"busy", func(d *Deps) {
+			d.Adopt = func(context.Context, remote.Runner, string, string) error {
+				return &server.ScriptError{Code: "busy"}
+			}
+		}, "The server is busy with another Wayveil operation. Try again in a minute."},
+		{"addclient", func(d *Deps) {
+			d.AddClient = func(context.Context, remote.Runner, string) (server.Client, error) {
+				return server.Client{}, &server.ScriptError{Code: "invalid_config", Message: "xray rejected the config"}
+			}
+		}, "The server could not finish the operation: xray rejected the config"},
+		{"info", func(d *Deps) {
+			d.Info = func(context.Context, remote.Runner) (server.ServerInfo, error) {
+				return server.ServerInfo{}, &server.ScriptError{Code: "not_installed"}
+			}
+		}, "Wayveil is not installed on this server."},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := newHarness(t, info)
+			c.setup(h.d)
+			a := h.start(t)
+			h.connect(t)
+			if _, err := a.Adopt(); err == nil || err.Error() != c.want {
+				t.Fatalf("err = %v, want %q", err, c.want)
+			}
+		})
 	}
 }
 
