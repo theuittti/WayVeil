@@ -56,7 +56,7 @@
     placeholder="vless://…"
     spellcheck="false"
     autocomplete="off"
-    onkeydown={(e) => e.key === 'Enter' && submit()}
+    onkeydown={(e) => e.key === 'Enter' && !busy && submit()}
   />
   {#if error}<p class="err">{error}</p>{/if}
   <div class="row">

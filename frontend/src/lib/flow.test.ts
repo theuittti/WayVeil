@@ -50,6 +50,9 @@ describe('next', () => {
   it('back from access goes to paste', () => {
     expect(next('access', { type: 'back' })).toBe('paste')
   })
+  it('back from access goes to main when a profile exists', () => {
+    expect(next('access', { type: 'back', hasProfile: true })).toBe('main')
+  })
   it('chooseTarget goes from target to installing', () => {
     expect(next('target', { type: 'chooseTarget' })).toBe('installing')
   })

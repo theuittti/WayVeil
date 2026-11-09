@@ -6,7 +6,7 @@ export type Screen =
 export type FlowEvent =
   | { type: 'start'; state: UIState }
   | { type: 'ownServer' }
-  | { type: 'back' }
+  | { type: 'back'; hasProfile?: boolean }
   | { type: 'connected'; check: HostCheck }
   | { type: 'chooseTarget' }
   | { type: 'installFinished' }
@@ -41,7 +41,8 @@ export function next(s: Screen, ev: FlowEvent): Screen {
       }
     case 'back':
       if (s === 'target' || s === 'existing' || s === 'refused') return 'access'
-      return s === 'access' ? 'paste' : s
+      if (s !== 'access') return s
+      return ev.hasProfile ? 'main' : 'paste'
     case 'chooseTarget':
       return s === 'target' ? 'installing' : s
     case 'installFinished':

@@ -1,0 +1,45 @@
+/* Shared look of the wizard screens (style A). */
+.wz {
+  box-sizing: border-box;
+  height: 100vh;
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wz .top { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.wz .back {
+  background: none; border: none; color: var(--link); font: inherit; cursor: pointer; padding: 0;
+}
+.wz .step { font-size: 11px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.08em; }
+.wz h2 { margin: 2px 0 0; font-size: 20px; font-weight: 600; }
+.wz .mut { margin: 0; opacity: 0.65; font-size: 14px; line-height: 1.4; }
+.wz .small { font-size: 12px; }
+.wz .err { margin: 0; color: var(--warn); font-size: 14px; line-height: 1.4; }
+.wz .grow { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.wz input[type='text'], .wz input:not([type]), .wz input[type='password'], .wz textarea {
+  box-sizing: border-box; width: 100%; padding: 11px 13px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12); background: var(--card); color: var(--text); font: inherit;
+}
+.wz textarea { resize: none; height: 96px; font-family: ui-monospace, monospace; font-size: 12px; }
+.wz input:focus, .wz textarea:focus { outline: 1px solid var(--link); }
+.wz label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; opacity: 0.9; }
+.wz label > span { opacity: 0.65; }
+.wz .row { display: flex; gap: 10px; }
+.wz .seg { display: flex; gap: 6px; }
+.wz .seg button {
+  flex: 1; padding: 8px; border-radius: 10px; border: none; background: var(--card);
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.wz .seg button.on { background: rgba(59, 130, 246, 0.35); }
+.wz button.primary, .wz button.ghost {
+  padding: 12px; border-radius: 12px; border: none; color: var(--text); font: inherit; cursor: pointer;
+}
+.wz button.primary { background: var(--btn); box-shadow: var(--glow); font-weight: 600; }
+.wz button.ghost { background: var(--card); }
+.wz button:disabled { opacity: 0.6; cursor: default; }
+.wz .card { background: var(--card); border-radius: 12px; padding: 10px 12px; }
+.wz .ok { color: var(--ok); }
+.wz .warn { color: var(--warn); }
+.wz .link { color: var(--link); }
+.wz .btns { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }

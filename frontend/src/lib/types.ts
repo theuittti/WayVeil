@@ -24,6 +24,13 @@ export interface AccessForm {
   privateKey: string
 }
 
+// The non-secret part of the access form, kept across screens.
+export interface AccessFields {
+  host: string
+  port: number
+  user: string
+}
+
 export interface HostCheck {
   fingerprint: string
   pinned: boolean

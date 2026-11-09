@@ -14,15 +14,17 @@
   let status = $state<ConnStatus>({ state: 'disconnected', since: 0, up: 0, down: 0, error: '' })
   let mode = $state('smart')
   let now = $state(Date.now())
-  let error = $state('')
+  let error = $state('') // from user actions
+  let pollError = $state('') // from the last Status poll
   let menu = $state(false)
   let pending = $state(false)
 
   async function poll() {
     try {
       status = await api.Status()
+      pollError = ''
     } catch (e) {
-      error = String(e)
+      pollError = String(e)
     }
     now = Date.now()
   }
@@ -39,7 +41,7 @@
   const label = $derived(
     connecting ? 'Connecting…' : connected ? 'Connected' : status.state === 'failed' ? 'Connection failed' : 'Disconnected',
   )
-  const detail = $derived(error || (status.state === 'failed' ? status.error : ''))
+  const detail = $derived(error || pollError || (status.state === 'failed' ? status.error : ''))
 
   async function toggle() {
     error = ''
@@ -65,11 +67,13 @@
   }
 </script>
 
+<svelte:window onclick={() => (menu = false)} />
+
 <section>
   <header>
     <span class="name">{ui.profileName || 'Wayveil'}</span>
     <div class="menuwrap">
-      <button class="dots" aria-label="Menu" onclick={() => (menu = !menu)}>⋯</button>
+      <button class="dots" aria-label="Menu" onclick={(e) => { e.stopPropagation(); menu = !menu }}>⋯</button>
       {#if menu}
         <div class="menu">
           <button onclick={onopenwizard}>Set up my own server</button>

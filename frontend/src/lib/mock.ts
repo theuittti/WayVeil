@@ -30,13 +30,9 @@ const targets: TargetEvent[] = [
 ]
 
 const steps: [string, string][] = [
-  ['ssh', 'Connecting to the server'],
-  ['download', 'Downloading Xray'],
-  ['install', 'Installing Xray'],
-  ['config', 'Writing the configuration'],
-  ['firewall', 'Opening the firewall'],
-  ['start', 'Starting the service'],
-  ['verify', 'Checking that it works'],
+  ['uninstaller', 'Preparing clean removal'], ['authkey', 'App access key'], ['deps', 'Packages'],
+  ['xray', 'Xray'], ['keys', 'REALITY keys'], ['config', 'Configuration'], ['service', 'Service'],
+  ['bbr', 'BBR'], ['logrotate', 'Log rotation'], ['verify', 'Final check'],
 ]
 
 function link(host: string): Done {
@@ -51,12 +47,21 @@ function link(host: string): Done {
 
 let host = '203.0.113.7'
 
+// A host containing "fail" makes the first install break halfway; Reinstall then works.
+let failNext = false
+
 async function runInstall(): Promise<Done> {
   stopScan()
-  for (const [id, title] of steps) {
-    const ev = (status: string): StepEvent => ({ id, status, title, message: '', at: Date.now() })
-    emit('step', ev('start'))
+  const failAt = failNext ? 4 : -1
+  failNext = false
+  for (const [n, [id, title]] of steps.entries()) {
+    const ev = (status: string, message = ''): StepEvent => ({ id, status, title, message, at: Date.now() })
+    emit('step', ev('start', 'running…'))
     await sleep(400)
+    if (n === failAt) {
+      emit('step', ev('fail', 'connection lost'))
+      throw 'The connection to the server was lost during “' + title + '”. Clean up and try again.'
+    }
     emit('step', ev('ok'))
   }
   state = { ...state, hasOwner: true }
@@ -106,6 +111,7 @@ export const mock: Api = {
   async ServerConnect(f: AccessForm): Promise<HostCheck> {
     await sleep(600)
     host = f.host.trim() || host
+    failNext = host.includes('fail')
     const base: HostCheck = {
       fingerprint: 'SHA256:mockFingerprintmockFingerprintmockFingerprint0', pinned: false,
       os: 'Ubuntu 24.04', arch: 'amd64', state: 'fresh', detail: 'Ubuntu 24.04', message: '',
@@ -121,6 +127,13 @@ export const mock: Api = {
   async ServerDisconnect() { stopScan() },
   async CheckDomain(d) {
     await sleep(300)
+    if (d.includes('bad')) {
+      return {
+        ok: false,
+        problems: ['This site does not support TLS 1.3.', 'It is far from your server (310 ms).'],
+        alternatives: ['www.microsoft.com', 'www.apple.com'],
+      }
+    }
     return d.trim() ? { ok: true, problems: [], alternatives: [] } : { ok: false, problems: ['Enter a website domain.'], alternatives: [] }
   },
   async Install() { return runInstall() },
