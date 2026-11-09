@@ -1,3 +1,6 @@
 .superpowers/
 build/
 internal/server/assets/wv-scan-*
+frontend/node_modules/
+frontend/dist/
+cmd/wayveil-gui/frontend_dist/
