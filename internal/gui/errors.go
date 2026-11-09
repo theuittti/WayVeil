@@ -5,7 +5,9 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/theuittti/WayVeil/internal/client"
 	"github.com/theuittti/WayVeil/internal/clientstore"
+	"github.com/theuittti/WayVeil/internal/engine"
 	"github.com/theuittti/WayVeil/internal/remote"
 	"github.com/theuittti/WayVeil/internal/server"
 	"github.com/theuittti/WayVeil/internal/sshx"
@@ -63,6 +65,12 @@ func Human(err error) string {
 		return "Already working on it…"
 	case errors.Is(err, ErrBadHost):
 		return "Enter the server's IP address or hostname."
+	case errors.Is(err, engine.ErrNeedsElevation):
+		return "Wayveil needs permission to create its network interface."
+	case errors.Is(err, engine.ErrElevationDenied):
+		return "Permission was not granted."
+	case errors.Is(err, client.ErrNoProfile):
+		return "No connection link yet. Paste one first."
 	case errors.Is(err, errNotConnected):
 		return "Not connected to the server. Go back and connect again."
 	case errors.Is(err, clientstore.ErrBadDomain):

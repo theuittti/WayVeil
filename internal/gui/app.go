@@ -10,7 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/theuittti/WayVeil/internal/client"
 	"github.com/theuittti/WayVeil/internal/clientstore"
+	"github.com/theuittti/WayVeil/internal/engine"
+	"github.com/theuittti/WayVeil/internal/lists"
+	"github.com/theuittti/WayVeil/internal/mihomo"
 	"github.com/theuittti/WayVeil/internal/ownerstore"
 	"github.com/theuittti/WayVeil/internal/remote"
 	"github.com/theuittti/WayVeil/internal/server"
@@ -51,11 +55,17 @@ type Deps struct {
 	Targets        func() rules.Targets
 	XrayZip        func(arch string) []byte // nil: the server downloads xray itself
 	Now            func() time.Time
+
+	// Client is the connect/apply collaborators; Client.Engine is nil when
+	// the engine could not be created, in which case ClientErr says why.
+	Client    client.Deps
+	ClientErr error
+	HasOwner  func() bool // an owner server profile is saved
 }
 
 // DefaultDeps are the real implementations; Xray zips are read from exeDir.
 func DefaultDeps(exeDir string) Deps {
-	return Deps{
+	d := Deps{
 		Connect: func(ctx context.Context, t sshx.Target) (Conn, error) {
 			c, err := sshx.Connect(ctx, t)
 			if err != nil {
@@ -80,7 +90,16 @@ func DefaultDeps(exeDir string) Deps {
 		Targets:        rules.DefaultTargets,
 		XrayZip:        zipReader(exeDir),
 		Now:            time.Now,
+		HasOwner:       ownerstore.Any,
 	}
+	d.Client = client.Deps{Grant: engine.GrantCaps, Update: lists.Update, Mihomo: mihomo.Find}
+	eng, err := engine.New(engine.Options{Inbound: mihomo.TUN})
+	if err != nil {
+		d.ClientErr = err
+	} else {
+		d.Client.Engine = eng
+	}
+	return d
 }
 
 // zipReader returns the official Xray zip for a server arch from dir, or nil
@@ -111,6 +130,10 @@ type App struct {
 	busy       bool               // ServerConnect / Install / Adopt / Reinstall running
 	workCancel context.CancelFunc // cancels the running busy call
 	sess       *session
+
+	connBusy   bool               // Connect / SetMode running
+	connCancel context.CancelFunc // cancels the running connection call
+	connOp     sync.Mutex         // serialises engine operations
 
 	scanGen    uint64 // bumped on every scan stop; stale scans cannot emit
 	scanCancel context.CancelFunc

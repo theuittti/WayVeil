@@ -74,3 +74,13 @@ func Delete(host string, port int) error {
 	}
 	return os.Remove(f)
 }
+
+// Any reports whether at least one owner server profile is saved.
+func Any() bool {
+	d, err := Dir()
+	if err != nil {
+		return false
+	}
+	m, _ := filepath.Glob(filepath.Join(d, "servers", "*.json"))
+	return len(m) > 0
+}
