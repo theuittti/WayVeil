@@ -87,6 +87,17 @@ once to authorize a test key (`~/.config/wayveil-test/id_ed25519`); remove
 sudo bash /etc/xray/wayveil-uninstall.sh
 ```
 
+## Desktop app (Linux, preview)
+
+```bash
+make app            # builds build/wayveil-gui (natively if WebKitGTK 4.1 dev headers and npm are present, otherwise inside Docker)
+./build/wayveil-gui
+```
+
+Runtime dependency: `libwebkit2gtk-4.1-0` (`sudo apt install libwebkit2gtk-4.1-0` on Ubuntu/Debian).
+Keep `mihomo`, `xray` and the Xray zips next to the binary; `make app` puts them in `build/`.
+`make ui` serves the interface in a browser with a mock backend, for UI work.
+
 ## Credits
 
 The server installer is derived from
