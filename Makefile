@@ -95,7 +95,7 @@ app-smoke:
 
 # Vite dev server (a later task adds a mock backend).
 ui:
-	cd frontend && npm run dev
+	cd frontend && VITE_MOCK=1 npm run dev
 
 # End-to-end on the disposable test VPS from ~/.config/wayveil-test/vps.env.
 e2e: build
