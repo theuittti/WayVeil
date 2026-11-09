@@ -1,7 +1,12 @@
 <script lang="ts">
   import { api } from '../lib/backend'
 
-  let { onimported, onownserver }: { onimported: () => void; onownserver: () => void } = $props()
+  // onback is set when a profile already exists (Main → Replace link).
+  let { onimported, onownserver, onback }: {
+    onimported: () => void
+    onownserver: () => void
+    onback?: () => void
+  } = $props()
 
   let link = $state('')
   let error = $state('')
@@ -25,7 +30,7 @@
 
   async function fromClipboard() {
     try {
-      link = await navigator.clipboard.readText()
+      link = await api.readClipboard()
     } catch {
       input?.focus()
       return
@@ -47,7 +52,8 @@
   }
 </script>
 
-<section>
+<section class:hasback={!!onback}>
+  {#if onback}<button class="back" onclick={onback}>‹ Back</button>{/if}
   <h1>Wayveil</h1>
   <p class="sub">Paste a connection link</p>
   <input
@@ -77,6 +83,11 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+  }
+  section.hasback { padding-top: 18px; }
+  .back {
+    align-self: flex-start; min-height: 22px; margin-bottom: 2px;
+    background: none; border: none; color: var(--link); font: inherit; cursor: pointer; padding: 0;
   }
   h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: 0.04em; text-align: center; }
   .sub { margin: 0 0 12px; text-align: center; opacity: 0.8; }

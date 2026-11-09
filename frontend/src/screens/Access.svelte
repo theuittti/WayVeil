@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api, type AccessFields, type HostCheck } from '../lib/backend'
+  import { isHostKeyChanged } from '../lib/errors'
 
   let { fields = $bindable(), onback, onconnected }: {
     fields: AccessFields
@@ -31,9 +32,22 @@
     } catch (e) {
       error = String(e)
     } finally {
-      password = '' // never kept after the call
+      password = '' // secrets are never kept after the call
+      privateKey = ''
       busy = false
     }
+  }
+
+  // Back while connecting or at the fingerprint question closes the session;
+  // App ignores a ServerConnect result that arrives after this.
+  async function back() {
+    pending = null
+    try {
+      await api.ServerDisconnect()
+    } catch {
+      /* nothing to clean up */
+    }
+    onback()
   }
 
   async function reject() {
@@ -47,7 +61,7 @@
 </script>
 
 <section class="wz">
-  <div class="top"><button class="back" onclick={onback}>‹ Back</button></div>
+  <div class="top"><button class="back" onclick={back}>‹ Back</button></div>
   <div class="step">Step 1 of 3</div>
   <h2>Your server</h2>
   <p class="mut">The details from your hosting provider's email. The password is used once and never saved.</p>
@@ -86,12 +100,19 @@
         <textarea bind:value={privateKey} spellcheck="false" aria-label="Private key"
           placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
       {/if}
-      {#if error}<p class="err">{error}</p>{/if}
+      {#if error}
+        {#if isHostKeyChanged(error)}
+          <div class="card danger-box"><p class="danger hk">{error}</p></div>
+        {:else}
+          <p class="err">{error}</p>
+        {/if}
+      {/if}
     </div>
     <button class="primary" disabled={busy} onclick={connect}>{busy ? 'Connecting…' : 'Connect'}</button>
   {/if}
 </section>
 
 <style>
+  .hk { margin: 0; font-size: 14px; line-height: 1.4; }
   .fp code { display: block; margin-top: 6px; font-size: 12px; word-break: break-all; color: var(--link); }
 </style>

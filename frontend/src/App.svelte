@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { api, on, type AccessFields, type Done, type HostCheck, type TargetEvent, type UIState } from './lib/backend'
+  import { api, backendError, backendOK, on, type AccessFields, type Done, type HostCheck, type TargetEvent, type UIState } from './lib/backend'
   import { next, type FlowEvent, type Screen } from './lib/flow'
   import { defaultTarget, merge } from './lib/targets'
   import Paste from './screens/Paste.svelte'
@@ -26,6 +26,7 @@
   let sni = $state('')
   let action = $state<'install' | 'reinstall'>('install')
   let done = $state<Done | null>(null)
+  let notice = $state('') // error for Main to show on arrival
 
   function send(ev: FlowEvent) {
     screen = next(screen ?? 'paste', ev)
@@ -46,6 +47,7 @@
   }
 
   onMount(() => {
+    if (!backendOK) return
     const offTarget = on('target', (ev) => (targets = merge(targets, ev)))
     const offDone = on('target-done', () => (scanning = false))
     api.State().then(
@@ -59,7 +61,9 @@
   const stopScan = () => { scanning = false }
 
   function connected(c: HostCheck) {
+    if (screen !== 'access') return // a late result after Back
     check = c
+    action = 'install'
     targets = []
     picked = null
     scanning = c.state === 'fresh' || c.state === 'wayveil' || c.state === 'partial'
@@ -77,18 +81,29 @@
     send({ type: 'back' })
   }
 
-  function install() {
+  // Back on target: during a reinstall to the existing-install screen (the
+  // session stays), otherwise to Access.
+  function targetBack() {
+    if (action === 'reinstall') send({ type: 'back', reinstall: true })
+    else disconnectAndBack()
+  }
+
+  // Next on target: Install, or Reinstall when coming from the existing screen.
+  function chooseTarget() {
     stopScan()
     sni = picked ?? defaultTarget(targets)
-    action = 'install'
     send({ type: 'chooseTarget' })
   }
 
   function reinstall() {
-    stopScan()
-    sni = defaultTarget(targets)
     action = 'reinstall'
+    picked = null
     send({ type: 'reinstall' })
+  }
+
+  function connectedFromDone(error: string) {
+    notice = error
+    goMain({ type: 'connect' })
   }
 
   function finished(d: Done) {
@@ -104,13 +119,21 @@
 </script>
 
 <main>
-  {#if screen === 'paste'}
+  {#if !backendOK}
+    <section class="wz fatal"><p class="err">{backendError}</p></section>
+  {:else if screen === 'paste'}
     <Paste
       onimported={() => goMain({ type: 'imported' })}
       onownserver={() => send({ type: 'ownServer' })}
+      onback={ui.hasProfile ? () => goMain({ type: 'back', hasProfile: true }) : undefined}
     />
   {:else if screen === 'main'}
-    <Main {ui} onopenwizard={() => send({ type: 'openWizard' })} onreplacelink={() => send({ type: 'replaceLink' })} />
+    <Main
+      {ui}
+      {notice}
+      onopenwizard={() => { notice = ''; send({ type: 'openWizard' }) }}
+      onreplacelink={() => { notice = ''; send({ type: 'replaceLink' }) }}
+    />
   {:else if screen === 'access'}
     <Access bind:fields onback={() => goMain({ type: 'back', hasProfile: ui.hasProfile })} onconnected={connected} />
   {:else if screen === 'target'}
@@ -119,13 +142,13 @@
       {scanning}
       {scanStart}
       bind:selected={() => picked ?? defaultTarget(targets), (v) => (picked = v)}
-      onback={disconnectAndBack}
-      onnext={install}
+      onback={targetBack}
+      onnext={chooseTarget}
     />
   {:else if screen === 'installing'}
-    <Installing {sni} {action} ondone={finished} />
+    <Installing {sni} {action} ondone={finished} onback={disconnectAndBack} />
   {:else if screen === 'done' && done}
-    <DoneScreen {done} onconnect={() => goMain({ type: 'connect' })} />
+    <DoneScreen {done} onconnect={connectedFromDone} />
   {:else if screen === 'existing' && check}
     <Existing {check} onback={disconnectAndBack} onadopted={adopted} onreinstall={reinstall} />
   {:else if screen === 'refused' && check}
@@ -135,4 +158,5 @@
 
 <style>
   main { max-width: 380px; margin: 0 auto; min-height: 100vh; }
+  .fatal { justify-content: center; text-align: center; }
 </style>

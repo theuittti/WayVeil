@@ -5,8 +5,10 @@
   import RoundButton from '../components/RoundButton.svelte'
   import Card from '../components/Card.svelte'
 
-  let { ui, onopenwizard, onreplacelink }: {
+  // notice: an error to show on arrival (a failed Connect on the Done screen).
+  let { ui, notice = '', onopenwizard, onreplacelink }: {
     ui: UIState
+    notice?: string
     onopenwizard: () => void
     onreplacelink: () => void
   } = $props()
@@ -31,6 +33,7 @@
 
   onMount(() => {
     mode = ui.mode || 'smart'
+    error = notice
     poll()
     const t = setInterval(poll, 1000)
     return () => clearInterval(t)

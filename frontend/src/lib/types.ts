@@ -88,5 +88,7 @@ export interface Api {
   Install(sni: string): Promise<Done>
   Adopt(): Promise<Done>
   Reinstall(sni: string): Promise<Done>
+  copyText(text: string): Promise<void>
+  readClipboard(): Promise<string>
   on<K extends keyof Events>(event: K, cb: (data: Events[K]) => void): () => void
 }

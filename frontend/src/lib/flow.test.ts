@@ -65,8 +65,23 @@ describe('next', () => {
   it('adopt goes from existing to done', () => {
     expect(next('existing', { type: 'adopt' })).toBe('done')
   })
-  it('reinstall goes from existing to installing', () => {
-    expect(next('existing', { type: 'reinstall' })).toBe('installing')
+  it('reinstall goes from existing to target (the user picks the site first)', () => {
+    expect(next('existing', { type: 'reinstall' })).toBe('target')
+  })
+  it('reinstall retries on installing', () => {
+    expect(next('installing', { type: 'reinstall' })).toBe('installing')
+  })
+  it('back from target during a reinstall goes to existing', () => {
+    expect(next('target', { type: 'back', reinstall: true })).toBe('existing')
+  })
+  it('back from a failed install goes to access', () => {
+    expect(next('installing', { type: 'back' })).toBe('access')
+  })
+  it('back from paste goes to main when a profile exists', () => {
+    expect(next('paste', { type: 'back', hasProfile: true })).toBe('main')
+  })
+  it('back from paste without a profile stays on paste', () => {
+    expect(next('paste', { type: 'back' })).toBe('paste')
   })
   it('connect goes from done to main', () => {
     expect(next('done', { type: 'connect' })).toBe('main')

@@ -1,13 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api, on, type Done } from '../lib/backend'
+  import { needsReconnect } from '../lib/errors'
   import { duration } from '../lib/format'
   import { apply, initial, type StepRow } from '../lib/steps'
 
-  let { sni, action, ondone }: {
+  // onback leaves a failed install for the Access screen (App disconnects first).
+  let { sni, action, ondone, onback }: {
     sni: string
     action: 'install' | 'reinstall'
     ondone: (d: Done) => void
+    onback: () => void
   } = $props()
 
   let rows = $state<StepRow[]>(initial())
@@ -47,11 +50,13 @@
     }
   })
 
+  const reconnect = $derived(needsReconnect(error))
   const icon = (s: string) => (s === 'ok' ? '✓' : s === 'warn' ? '!' : '✗')
   const time = (at: number) => new Date(at).toLocaleTimeString([], { hour12: false })
 </script>
 
 <section class="wz">
+  {#if error && !running}<div class="top"><button class="back" onclick={onback}>‹ Back</button></div>{/if}
   <div class="step">Step 3 of 3</div>
   <h2>Installing</h2>
 
@@ -77,7 +82,9 @@
     {/if}
   </div>
 
-  {#if error}
+  {#if error && reconnect}
+    <button class="primary" onclick={onback}>Connect again</button>
+  {:else if error}
     <button class="primary" disabled={running} onclick={() => run('reinstall')}>Clean up and install again</button>
   {:else}
     <p class="mut timer">{duration(now - started)}</p>

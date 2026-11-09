@@ -6,7 +6,7 @@ export type Screen =
 export type FlowEvent =
   | { type: 'start'; state: UIState }
   | { type: 'ownServer' }
-  | { type: 'back'; hasProfile?: boolean }
+  | { type: 'back'; hasProfile?: boolean; reinstall?: boolean }
   | { type: 'connected'; check: HostCheck }
   | { type: 'chooseTarget' }
   | { type: 'installFinished' }
@@ -40,10 +40,12 @@ export function next(s: Screen, ev: FlowEvent): Screen {
         default: return 'refused' // foreign, unsupported, port-busy
       }
     case 'back':
-      if (s === 'target' || s === 'existing' || s === 'refused') return 'access'
+      if (s === 'target' && ev.reinstall) return 'existing'
+      if (s === 'target' || s === 'existing' || s === 'refused' || s === 'installing') return 'access'
+      if (s === 'paste') return ev.hasProfile ? 'main' : s
       if (s !== 'access') return s
       return ev.hasProfile ? 'main' : 'paste'
-    case 'chooseTarget':
+    case 'chooseTarget': // Next on target: Install, or Reinstall after existing
       return s === 'target' ? 'installing' : s
     case 'installFinished':
       return s === 'installing' ? 'done' : s
@@ -52,7 +54,8 @@ export function next(s: Screen, ev: FlowEvent): Screen {
     case 'adopt':
       return s === 'existing' ? 'done' : s
     case 'reinstall':
-      return s === 'existing' || s === 'installing' ? 'installing' : s
+      if (s === 'existing') return 'target' // the user picks the site first
+      return s === 'installing' ? 'installing' : s
     case 'connect':
       return s === 'done' ? 'main' : s
   }

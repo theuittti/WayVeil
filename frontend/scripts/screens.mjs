@@ -1,4 +1,5 @@
-// Screenshots of the mock UI at 380x640. Usage (see README in the task notes):
+// Screenshots of the mock UI at 380x640. Usage: serve a mock build
+// (`VITE_MOCK=1 npm run build && npx vite preview`), then
 //   BASE=http://localhost:4173 OUT=./screens node scripts/screens.mjs
 // Needs `playwright` and a browser; run it in the official Playwright container.
 import { chromium } from 'playwright'
@@ -53,26 +54,56 @@ await shot('09-main-connected')
 await click('Menu')
 await shot('10-main-menu')
 
-await toAccess('fail.example')
-await click(/^Connect$/); await click('Yes, continue')
+await click('Replace link')
+await page.getByText('Paste a connection link').waitFor()
+await shot('11-paste-back')
+await click(/Back/)
+await page.getByLabel('Menu').waitFor()
+
+async function connectTo(host) {
+  await toAccess(host)
+  await click(/^Connect$/); await click('Yes, continue')
+}
+
+await connectTo('fail.example')
 await page.getByText('Step 2 of 3').waitFor()
 await click('Next')
-await page.getByText('Clean up and install again').waitFor({ timeout: 10000 })
-await shot('11-installing-failed')
+await page.getByRole('button', { name: 'Connect again' }).waitFor({ timeout: 10000 })
+await shot('12-installing-lost')
 
-await toAccess('wayveil.example')
-await click(/^Connect$/); await click('Yes, continue')
+await connectTo('aptfail.example')
+await page.getByText('Step 2 of 3').waitFor()
+await click('Next')
+await page.getByRole('button', { name: 'Clean up and install again' }).waitFor({ timeout: 10000 })
+await shot('13-installing-failed')
+
+await connectTo('wayveil.example')
 await page.getByText(/already installed/).waitFor()
-await shot('12-existing')
+await shot('14-existing')
+await click('Reinstall')
+await page.getByText('Step 2 of 3').waitFor()
+await sleep(1500)
+await shot('15-existing-reinstall-target')
 
-await toAccess('partial.example')
-await click(/^Connect$/); await click('Yes, continue')
+await connectTo('partial.example')
 await page.getByText(/did not finish/).first().waitFor()
-await shot('13-existing-partial')
+await shot('16-existing-partial')
 
-await toAccess('busy.example')
-await click(/^Connect$/); await click('Yes, continue')
+await connectTo('busy.example')
 await page.getByText(/Port 443/).waitFor()
-await shot('14-refused')
+await shot('17-refused')
+
+await toAccess('changed.example')
+await click(/^Connect$/)
+await page.getByText(/identity changed/).waitFor()
+await shot('18-access-hostkey-changed')
+
+await connectTo('noperm.example')
+await page.getByText('Step 2 of 3').waitFor()
+await click('Next')
+await page.getByText('Server is ready').waitFor({ timeout: 10000 })
+await click(/^Connect$/)
+await page.getByText('Permission was not granted.').waitFor({ timeout: 5000 })
+await shot('19-main-connect-error')
 
 await browser.close()
