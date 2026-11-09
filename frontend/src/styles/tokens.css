@@ -1,0 +1,15 @@
+:root {
+  --bg: radial-gradient(circle at 50% 0%, #1e2a4a 0%, #0b0f1a 65%);
+  --bg-solid: #0b0f1a;
+  --btn: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  --glow: 0 0 18px rgba(99, 102, 241, 0.45);
+  --card: rgba(255, 255, 255, 0.06);
+  --text: #e8ecf5;
+  --ok: #4ade80;
+  --warn: #facc15;
+  --danger: #f87171;
+  --link: #93c5fd;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+html, body { margin: 0; height: 100%; background: var(--bg-solid); }
+body { background: var(--bg); color: var(--text); font-family: var(--font); }
