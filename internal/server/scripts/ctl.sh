@@ -1,6 +1,6 @@
 # wayveil-script: ctl
 # Client management on a Wayveil server. Usage: ctl.sh <command> [args]
-#   info | list | add <base64 name> | remove <id> | reissue <id> | stats | lastseen | set-sni <domain>
+#   info | list | add <base64 name> | remove <id> | reissue <id> | stats | lastseen | set-sni <domain> | adopt <user> <base64 key line>
 # Prints ##RESULT <json> or ##ERROR <code> <message>.
 set -Eeuo pipefail
 XRAY=/usr/local/bin/xray
@@ -114,6 +114,26 @@ set-sni)
   jq --arg d "$d" '(.inbounds[] | select(.tag == "vless-in") | .streamSettings.realitySettings) |= (.target = ($d + ":443") | .serverNames = [$d])' "$CFG" > "$NCFG"
   jq --arg d "$d" '.sni = $d' "$WV" > "$NWV"
   apply "$NCFG" "$NWV"
+  result '{"ok":true}' ;;
+adopt)
+  # Authorize the app's SSH key like install.sh's authkey step; the manifest
+  # entry is written first and only when the key is new, so uninstall removes it.
+  u=${2:?}
+  key=$(printf '%s' "${3:?}" | base64 -d)
+  [ -n "$key" ] || err bad_key "empty key"
+  getent passwd "$u" >/dev/null || err no_such_user "$u"
+  H=$(getent passwd "$u" | cut -d: -f6)
+  G=$(id -gn "$u")
+  [ -n "$H" ] || err no_such_user "$u"
+  install -d -m 0700 -o "$u" -g "$G" "$H/.ssh"
+  AK="$H/.ssh/authorized_keys"
+  if ! grep -qxF "$key" "$AK" 2>/dev/null; then
+    echo "line $AK $(printf '%s' "$key" | base64 -w0)" >> /etc/xray/wayveil-manifest
+    if [ -s "$AK" ] && [ -n "$(tail -c 1 "$AK")" ]; then echo >> "$AK"; fi
+    printf '%s\n' "$key" >> "$AK"
+  fi
+  chown "$u:$G" "$AK"
+  chmod 0600 "$AK"
   result '{"ok":true}' ;;
 *)
   err bad_command "$cmd" ;;

@@ -106,3 +106,9 @@ func ClientLink(info ServerInfo, c Client) string {
 	return link.Build(link.Params{UUID: c.UUID, Host: info.Address, SNI: info.SNI,
 		PublicKey: info.PublicKey, ShortID: info.ShortID, Name: c.Name})
 }
+
+// Adopt authorizes keyLine for user on an already-installed server. The key is
+// recorded in the install manifest, so uninstall removes it again.
+func Adopt(ctx context.Context, r remote.Runner, user, keyLine string) error {
+	return ctl(ctx, r, nil, "adopt", user, base64.StdEncoding.EncodeToString([]byte(keyLine)))
+}
